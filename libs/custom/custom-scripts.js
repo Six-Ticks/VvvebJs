@@ -1,6 +1,8 @@
 $(document).ready(function () {
 });
 
+var st_forms = {};
+
 function stAjaxCall(a, d = {}, t = 'GET') {
 
 	// get the current page url

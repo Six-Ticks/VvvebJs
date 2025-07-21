@@ -13,6 +13,20 @@ function processComponents(components) {
 	// check we have components
 	if (components) {
 
+		// find any components that are forms
+		for (const key in components) {
+			if (!components.hasOwnProperty(key)) continue;
+			var component = components[key];
+
+			// check if this is a form
+			if (key.startsWith('form-') && component && component.name && component.value) {
+				st_forms[component.name] = component.value;
+
+				// remove the form from the components list
+				delete components[key];
+			}
+		}
+
 		// loop through each component
 		for (const key in components) {
 			if (!components.hasOwnProperty(key)) continue;
@@ -21,6 +35,34 @@ function processComponents(components) {
 
 				// set the properties
 				var properties = component.properties || [];
+
+				// check if this is a websiteform type
+				if (component.type === 'websiteform'
+					&& Object.keys(st_forms).length > 0
+				) {
+
+					// build the select options
+					var options = [];
+					for (const formName in st_forms) {
+						if (!st_forms.hasOwnProperty(formName)) continue;
+						options.push({
+							value: st_forms[formName],
+							text: formName
+						});
+					}
+
+					// loop through the properties to find "Form*"
+					for (const key in properties) {
+						if (properties[key].name && properties[key].name == 'Form*') {
+
+							// set the input type to select
+							properties[key].data = {
+								options: options
+							};
+						}
+					}
+				}
+
 				if(properties.length) {
 					for (var i = 0; i < properties.length; i++) {
 
