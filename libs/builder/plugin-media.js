@@ -19,7 +19,7 @@ https://github.com/givanz/VvvebJs
 ImageInput = { ...ImageInput, ...{
 
 	tag: "img",
-	
+
     events: [
         ["change", "onImageChange", "input[type=text]"],
         ["click", "onClick", "button"],
@@ -49,33 +49,33 @@ ImageInput = { ...ImageInput, ...{
 		if (img.src) {
 			src = img.getAttribute("src");
 		}
-		
+
 		if (src) {
 			input.value = src;
 			input.onChange.call(self, event, node, input);
 			//e.data.element.trigger('propertyChange', [src, this]);
 		}
-		
+
 		//reselect image after loading to adjust highlight box size
 		let onLoad = function () {
 				if (Vvveb.Builder.selectedEl) {
 					Vvveb.Builder.selectedEl.click();
 				}
 		};
-		
+
 		Vvveb.Builder.selectedEl.addEventListener("load", onLoad);
 	},
-		
-    
+
+
     onClick: function(e, element) {
 		if (!Vvveb.MediaModal) {
-			Vvveb.MediaModal = new MediaModal(true);
+			Vvveb.MediaModal = new FileManager(true);
 			Vvveb.MediaModal.mediaPath = window.mediaPath;
 		}
 
 		Vvveb.MediaModal.open(this.closest("[data-target-input]"));
     },
-    
+
 	init: function(data) {
 		return this.render("imageinput-gallery", data);
 	},
@@ -91,7 +91,7 @@ VideoInput = { ...ImageInput, ...{
         ["click", "onClick", "video"],
 	 ],
 
-	
+
 	init: function(data) {
 		return this.render("videoinput-gallery", data);
 	},
