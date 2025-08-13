@@ -1,11 +1,10 @@
 class FileManager {
-	constructor (modal = true)
-	{
+	constructor(modal = true) {
 		this.isInit = false;
 		this.isModal = modal;
 
 		this.modalHtml =
-		`
+			`
 		<div class="modal fade modal-full" id="FileManagerModal" tabindex="-1" role="dialog" aria-labelledby="FileManagerModalLabel" aria-hidden="true">
 			<div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
 			<div class="modal-content">
@@ -16,7 +15,7 @@ class FileManager {
 					<!-- <span aria-hidden="true"><i class="la la-times la-lg"></i></span> -->
 				</button>
 				</div>
-				<div class="modal-body d-flex justify-content-center align-items-center" style="min-height: 200px;">
+				<div class="modal-body d-flex justify-content-center align-items-center flex-column" style="min-height: 200px;">
 
 					` + this.getLoadingIcon() + `
 
@@ -43,7 +42,7 @@ class FileManager {
 		</div>`;
 
 		this.response = [],
-		this.currentPath = '';
+			this.currentPath = '';
 		this.breadcrumbsUrls = [];
 		this.filemanager = null;
 		this.breadcrumbs = null;
@@ -54,19 +53,106 @@ class FileManager {
 		this.container = document.getElementById("FileManager");
 	}
 
+	lazyLoadImages(scope = this.container) {
+		const $scope = $(scope || document);
+		const folderUi = this._folderUri || (this._folderUri = this.getFolderIconUri());
+		const photoUi  = this._photoUri  || (this._photoUri  = this.getPhotoPlaceholderUri());
+		const documentUi   = this._documentUri   || (this._documentUri   = this.getDocumentIconUri());
+
+		// get every container that is in view
+		$scope.find('.doc-card').not('.has-file').each(function() {
+
+			// if not visible in viewport of *its scroll container*:
+			const $card = $(this);
+			const $container = $card.closest('.modal-body').length
+				? $card.closest('.modal-body')
+				: $(window);
+
+			const containerTop = $container.scrollTop();
+			const containerHeight = $container.height();
+			if (($card.position().top) < (containerTop - 500) ||
+				($card.position().top) > (containerTop + containerHeight + 500)) {
+				return; // skip if not in range
+			}
+
+			const url = (String($card.data('image') || '')).trim();
+			const type = (String($card.data('type') || '')).toLowerCase();
+			const $media = $card.find('.media-bg');
+			if (!$media.length) return;
+
+			// add the icons for each type first
+			if (type === 'folder') {
+				$media.css('background-image', `url("${folderUi}")`).data('bgApplied', 1);
+				$card.addClass('has-file is-folder');
+			} else if (type === 'gallery image' || type === 'image') {
+				$media.css('background-image', `url("${photoUi}")`).data('bgApplied', 1);
+				$card.addClass('has-file is-photo');
+			} else if (type === 'document' || type === 'file') {
+				$media.css('background-image', `url("${documentUi}")`).data('bgApplied', 1);
+				$card.addClass('has-file is-file');
+			}
+			$card.find('.loading-icon').remove();
+
+			// add the image
+			$('<img/>')
+				.on('load', function () {
+					$media.css('background-image', `url("${url.replace(/"/g, '\\"')}")`).data('bgApplied', 1);
+					$card.addClass('has-file');
+					$card.find('.placeholder-icon').remove();
+				})
+				.attr('src', url);
+		});
+	}
+
 	getLoadingIcon() {
 		return `
-		<div class="loading-icon text-center">
-			<div class="spinner-border text-primary" role="status">
-				<span class="visually-hidden">Loading...</span>
+			<div class="loading-icon text-center">
+				<div class="spinner-border text-primary" role="status">
+					<span class="visually-hidden">Loading...</span>
+				</div>
 			</div>
-		</div>`;
+		`;
+	}
+
+	getFolderIconUri() {
+		const svg = `
+			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+			<path fill="#f4c542" d="M4 10a2 2 0 0 1 2-2h13l3 3h20a2 2 0 0 1 2 2v3H4v-6z"/>
+			<path fill="#f7d774" d="M4 16h40v20a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V16z"/>
+			<path fill="#d4a72c" d="M4 16h40v2H4z" opacity=".35"/>
+			</svg>
+		`;
+		return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+	}
+
+	getDocumentIconUri() {
+		const svg = `
+			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+			<path fill="#e9ecef" d="M8 2h20l12 12v32a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/>
+			<path fill="#dee2e6" d="M28 2v12h12L28 2z"/>
+			<rect x="12" y="20" width="24" height="2" fill="#adb5bd"/>
+			<rect x="12" y="26" width="24" height="2" fill="#adb5bd"/>
+			<rect x="12" y="32" width="16" height="2" fill="#adb5bd"/>
+			</svg>
+		`;
+		return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+	}
+
+	getPhotoPlaceholderUri() {
+		const svg = `
+		<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 48">
+			<rect x="1.5" y="1.5" width="61" height="45" rx="6" ry="6" fill="#f1f3f5" stroke="#dee2e6"/>
+			<circle cx="46" cy="16" r="5" fill="#ced4da"/>
+			<path d="M8 38l12-14 9 10 10-12 17 16H8z" fill="#adb5bd"/>
+			<rect x="1.5" y="1.5" width="61" height="45" rx="6" ry="6" fill="none" stroke="#ced4da"/>
+		</svg>`;
+		return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 	}
 
 	addModalHtml() {
-		if (this.isModal) document.body.append(generateElements(this.modalHtml)[0]);
-		this.container = document.getElementById("FileManagerModal");
-		this.container.querySelector(".save-btn").addEventListener("click", () => this.save());
+		if (this.isModal) $('body').append(this.modalHtml);
+		this.container = document.getElementById('FileManagerModal');
+		$(this.container).find('.save-btn').on('click', () => this.save());
 	}
 
 	open(element, callback) {
@@ -91,38 +177,111 @@ class FileManager {
 		if (this.isModal) modal.show();
 	}
 
+	storeFolderId(folderId) {
+
+		// store the last used folder in local storage
+		if (folderId) {
+			localStorage.setItem('lastUsedFolder', folderId);
+		} else {
+			localStorage.removeItem('lastUsedFolder');
+		}
+	}
+
+	getFolderId() {
+
+		// check local storage for the last used folder
+		const lastUsedFolder = localStorage.getItem('lastUsedFolder');
+		if (lastUsedFolder) {
+			return lastUsedFolder;
+		}
+		return "";
+	}
+
 	init() {
 		if (!this.isInit) {
 			if (this.isModal) this.addModalHtml();
-			let self = this;
 
-			// this.initGallery();
+			// load the file manager
+			this.loadFolder();
+			this.setupListeners();
+
 			this.isInit = true;
-
-			var ajaxData = {
-				mediaPath: this.mediaPath,
-				doclink: this.doclink,
-				type: this.type,
-				targetInput: this.targetInput,
-				targetThumb: this.targetThumb
-			};
-			stAjaxCall('getDocuments', )
-
-			// this.container.querySelector(".filemanager input[type=file]").addEventListener("change", this.onUpload);
-			// this.container.querySelector(".filemanager").addEventListener("click", function (e) {
-			// 	let element = e.target.closest(".btn-delete");
-			// 	if (element) {
-			// 		//  self.deleteFile(element);
-			// 	} else {
-			// 		element = e.target.closest(".btn-rename");
-			// 		if (element) {
-			// 			//  self.renameFile(element);
-			// 		}
-			// 	}
-			// });
-
-			const event = new CustomEvent( "fileManager:init", {detail: { type:this.type, targetInput:this.targetInput, targetThumb:this.targetThumb, callback:this.callback} });
+			const event = new CustomEvent("fileManager:init", {
+				detail: { type: this.type, targetInput: this.targetInput, targetThumb: this.targetThumb, callback: this.callback }
+			});
 			window.dispatchEvent(event);
 		}
+	}
+
+	setupListeners() {
+		let self = this;
+		$(this.container).off('click.fileManager');
+
+		// event listener for folder clicks
+		$(this.container).on('click.fileManager', '.is-folder', function (e) {
+			e.preventDefault();
+			const folderId = $(this).data('id');
+			if (folderId) {
+				self.loadFolder(folderId);
+			}
+		});
+
+		// event listener for breadcrumb clicks
+		$(this.container).on('click.fileManager', '.breadcrumb-item a', function (e) {
+			e.preventDefault();
+			const folderId = $(this).data('id');
+			if (folderId) {
+				self.loadFolder(folderId);
+			}
+		});
+	}
+
+	loadFolder(folder_id = "") {
+		let self = this;
+		if(folder_id == "") {
+
+			// if no folder ID is provided, use the last used folder from local storage
+			folder_id = this.getFolderId();
+		}
+		var ajaxData = {
+			folder: folder_id || '',
+		};
+		stAjaxCall('getFileManager', ajaxData).then(async (response) => {
+			if (response && response.html) {
+				const $bodyEl = $(self.container).find('.modal-body');
+				$bodyEl.html(response.html);
+
+				// CSS injection
+				if (response.css && response.css.length > 0) {
+					const body = self.container.querySelector(".modal-body");
+					let style = body.querySelector(".filemanager-css");
+					if (!style) {
+						style = document.createElement("style");
+						style.classList.add("filemanager-css");
+						body.appendChild(style);
+					}
+					style.innerHTML = response.css;
+				}
+
+				// store the folder ID in local storage
+				if (folder_id) {
+					self.storeFolderId(folder_id);
+				}
+
+				// run the initial lazy load function
+				this.lazyLoadImages(self.container);
+				this.setupListeners();
+
+				// when the user scrolls, run the lazy load function
+				const $scrollTargets = $(window).add($bodyEl);
+				$scrollTargets.off('scroll.fileManager')
+					.on('scroll.fileManager', () => this.lazyLoadImages(this.container));
+
+			} else {
+				console.error("Error loading file manager:", response);
+			}
+		}).catch(function (error) {
+			console.error("Error loading file manager:", error);
+		});
 	}
 }
