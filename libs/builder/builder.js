@@ -1157,6 +1157,59 @@ Vvveb.Builder = {
 		// if (Vvveb.Builder.iframe.src != url) Vvveb.Builder.iframe.src = url;
 	},
 
+	loadPageID: function (id, callback) {
+		let self = this;
+		document.getElementById("select-box").style.display = "none";
+
+		self.initCallback = callback;
+
+		// get the html for this page
+		var action = 'getHtml';
+		var data = {};
+		data["id"] = id;
+
+		if(typeof stAjaxCall === 'function') {
+			stAjaxCall(action, data, 'POST').then(async (response) => {
+				if(response && response.html) {
+					let html = response.html;
+					if (html) {
+
+						// set any css or js that should be loaded in the iframe
+						self.iframe.onload = () => {
+							const doc = self.iframe.contentDocument;
+							const head = doc.head;
+							const body = doc.body;
+
+							if (response.css) {
+								const style = doc.createElement('style');
+								style.classList.add('st-ignore');
+								style.textContent = response.css;
+								head.appendChild(style);
+							}
+
+							if (response.js) {
+								const script = doc.createElement('script');
+								script.classList.add('st-ignore');
+								script.textContent = response.js;
+								body.appendChild(script)
+							}
+
+							if(response.editor_css) {
+								Vvveb.StyleManager.setCss(response.editor_css);
+							}
+						};
+
+						// load the HTML into the iframe
+						self.iframe.setAttribute('srcdoc', html);
+
+					} else {
+						displayToast("bg-danger", "Error", "Error loading page: " + response.message);
+					}
+				}
+			});
+		}
+	},
+
 	/* iframe */
 	_loadIframe: function (url) {
 		let self = this;
@@ -4094,7 +4147,19 @@ Vvveb.FileManager = {
 			return this.loadPage(this.currentPage);
 	},
 
-	loadPage: function (name, allowedComponents = false, disableCache = true, loadComponents = false) {
+	loadPage: function (name, allowedComponents = false, disableCache = true, loadComponents = false, id = "", callback = "", callbackParams = {}) {
+
+		// check for an id first
+		if (id) {
+			for (const page in this.pages) {
+				if (this.pages[page]['id'] == id) {
+					name = page;
+					break;
+				}
+			}
+		}
+
+		// get the url
 		let url = this.pages[name]['url'] ?? "";
 
 		if (!url) {
@@ -4126,6 +4191,12 @@ Vvveb.FileManager = {
 					Vvveb.SectionList.loadSections(allowedComponents);
 					Vvveb.TreeList.loadComponents();
 					Vvveb.StyleManager.init();
+
+					if (typeof callback === "function") {
+						callback(callbackParams);
+					} else if (typeof window[callback] === "function") {
+						window[callback](callbackParams);
+					}
 				});
 		}
 	},

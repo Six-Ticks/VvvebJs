@@ -63,3 +63,52 @@ stAjaxCall('getFilePath', [], 'GET').then(async (response) => {
 		}
 	}
 });
+
+function stGetPages() {
+	let pages = {};
+	stAjaxCall('getPages', {}, 'GET').then(async (response) => {
+
+		// build the pages object from the response
+		if(response && response.length) {
+			response.forEach(function (page) {
+				if(
+					(page.url == undefined
+						|| page.url == null
+						|| page.url == ''
+					)
+					&& page.title == "Home"
+				) {
+					page.url = "/";
+				}
+				if (page.title && page.url && page.id) {
+					pages[page.title] = {
+						id: page.id,
+						name: page.title,
+						file: page.url,
+						title: page.title,
+						url: page.url,
+						folder: page.folder || null,
+						description: page.description || ''
+					};
+				}
+			});
+		}
+
+		let firstPage = Object.keys(pages)[0];
+		Vvveb.Builder.init(pages[firstPage]["url"], function () {
+
+		});
+
+		Vvveb.Gui.init();
+		Vvveb.FileManager.init();
+		Vvveb.SectionList.init();
+		Vvveb.TreeList.init();
+		Vvveb.Breadcrumb.init();
+		Vvveb.CssEditor.init();
+
+		Vvveb.FileManager.addPages(pages);
+		Vvveb.FileManager.loadPage(pages[firstPage]["name"]);
+		Vvveb.Gui.toggleRightColumn(false);
+		Vvveb.Breadcrumb.init();
+	});
+}
