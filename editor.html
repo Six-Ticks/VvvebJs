@@ -148,6 +148,10 @@
 						<span class="text-secondary"><i class="la la-file la-lg"></i> Pages</span>
 
 						<div class="btn-group responsive-btns float-end" role="group">
+							<button class="btn btn-outline-primary btn-sm btn-add" title="New Folder"
+								id="st-new-folder-btn" data-bs-toggle="modal" data-bs-target="#st-new-folder-modal">
+								<i class="icon-folder"></i>
+							</button>
 							<button class="btn btn-outline-primary btn-sm btn-add" title="New page (Ctrl + Shift + P)"
 								id="new-file-btn" data-vvveb-action="newPage" data-vvveb-shortcut="">
 								<!-- <span>Add new</span> -->
@@ -1774,11 +1778,11 @@
 						</div>
 
 						<div class="mb-3 row" data-key="href">
-							<label class="col-sm-3 col-form-label">Page name</label>
+							<label class="col-sm-3 col-form-label">Page Name</label>
 							<div class="col-sm-9 input">
 								<div>
-									<input name="title" type="text" value="My page" class="form-control"
-										placeholder="My page" required>
+									<input name="title" type="text" value="" class="form-control"
+										placeholder="My Page" required>
 								</div>
 							</div>
 						</div>
@@ -1824,11 +1828,22 @@
 		-->
 
 						<div class="mb-3 row" data-key="href">
-							<label class="col-sm-3 col-form-label">Save to folder</label>
+							<label class="col-sm-3 col-form-label">Page Link</label>
 							<div class="col-sm-9 input">
 								<div>
-									<input name="folder" type="text" value="" class="form-control"
-										placeholder="/" required>
+									<input name="url" type="text" value="" class="form-control"
+										placeholder="my-page">
+								</div>
+							</div>
+							<div class="col-sm-3"></div>
+							<div class="col-sm-9 label-notice"><em id="st-page-link-preview"></em></div>
+						</div>
+
+						<div class="mb-3 row" data-key="href">
+							<label class="col-sm-3 col-form-label">Folder</label>
+							<div class="col-sm-9 input">
+								<div>
+									<select name="folder" class="form-select st-parent-folder-select"></select>
 								</div>
 							</div>
 						</div>
@@ -1839,6 +1854,57 @@
 								class="la la-times"></i> Cancel</button>
 						<button class="btn btn-primary btn-icon" type="submit"><i class="la la-check"></i> Create
 							page</button>
+					</div>
+				</div>
+
+			</form>
+
+		</div>
+	</div>
+
+	<!-- new folder modal-->
+	<div class="modal fade" id="st-new-folder-modal" tabindex="-1" role="dialog">
+		<div class="modal-dialog" role="document">
+
+			<form id="st-new-folder">
+
+				<div class="modal-content">
+					<div class="modal-header">
+						<span class="modal-title text-primary fw-normal"><i class="la la-lg la-folder"></i> New
+							Folder</span>
+						<button type="button" class="btn-close p-0 me-1" data-bs-dismiss="modal" aria-label="Close"></button>
+					</div>
+
+					<div class="modal-body text">
+
+						<div class="mb-3 row" data-key="href">
+							<label class="col-sm-3 col-form-label">Folder Name</label>
+							<div class="col-sm-9 input">
+								<div>
+									<input name="title" type="text" value="" class="form-control"
+										placeholder="My Folder" required>
+								</div>
+							</div>
+						</div>
+
+						<div class="mb-3 row" data-key="href">
+							<label class="col-sm-3 col-form-label">Parent Folder</label>
+							<div class="col-sm-9 input">
+								<div>
+									<select name="parent" class="form-select st-parent-folder-select"></select>
+								</div>
+							</div>
+							<!-- <span class="col-sm-3>"></span>
+							<span class="col-sm-9 label-notice"><em>This will be generated from the Folder Name if left blank</em></span> -->
+
+						</div>
+					</div>
+
+					<div class="modal-footer">
+						<button class="btn btn-secondary btn-icon" type="reset" data-bs-dismiss="modal"><i
+								class="la la-times"></i> Cancel</button>
+						<button class="btn btn-primary btn-icon" type="submit"><i class="la la-check"></i> Create
+							Folder</button>
 					</div>
 				</div>
 

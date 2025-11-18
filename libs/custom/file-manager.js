@@ -52,6 +52,8 @@ class FileManager {
 		this.doclink = doclink ?? window.location.href;
 		this.type = "single";
 		this.container = document.getElementById("FileManager");
+		this.submitButton = $(this.container).find('.save-btn');
+		this.submitButton.attr('disabled', 'disabled');
 	}
 
 	lazyLoadImages(scope = this.container) {
@@ -153,7 +155,7 @@ class FileManager {
 	addModalHtml() {
 		if (this.isModal) $('body').append(this.modalHtml);
 		this.container = document.getElementById('FileManagerModal');
-		$(this.container).find('.save-btn').on('click', () => this.save());
+		$(this.container).find('.save-btn').on('click', () => this.submit());
 	}
 
 	open(element, callback) {
@@ -216,6 +218,9 @@ class FileManager {
 
 	setupListeners() {
 		let self = this;
+		this.submitButton = $(this.container).find('.save-btn');
+		this.submitButton.attr('disabled', 'disabled');
+
 		$(this.container).off('click.fileManager');
 
 		// event listener for folder clicks
@@ -235,6 +240,57 @@ class FileManager {
 				self.loadFolder(folderId);
 			}
 		});
+
+		// event listener for image selection
+		$(this.container).on('click.fileManager', '.card-wrap .is-image', function (e) {
+			e.preventDefault();
+			$(this).toggleClass('selected');
+
+			// unselect other images if in single select mode
+			$(self.container).find('.card-wrap .is-image').not(this).each(function() {
+				$(this).removeClass('selected');
+			});
+
+			// check that at least one image is selected
+			const anySelected = $(self.container).find('.card-wrap .is-image.selected').length > 0;
+			if (anySelected) {
+				self.submitButton.removeAttr('disabled');
+			} else {
+				self.submitButton.attr('disabled', 'disabled');
+			}
+		});
+	}
+
+	submit() {
+
+		// get the select file
+		const selectedFile = $(this.container).find('.card-wrap .is-image.selected').first();
+		if (!selectedFile.length) return;
+
+		const src = selectedFile.data('image');
+
+		if (src.indexOf("//") == -1) {
+			src = this.mediaPath + src;
+		}
+
+		if (this.targetThumb) {
+			document.querySelector(this.targetThumb).setAttribute("src", src);
+		}
+
+		if (this.callback) {
+			this.callback(src);
+		}
+
+		if (this.targetInput) {
+			let input = document.querySelector(this.targetInput);
+			input.value = src;
+			const e = new Event("change",{bubbles: true});
+			input.dispatchEvent(e);
+			//$(this.targetInput).val(src).trigger("change");
+		}
+
+		let modal = bootstrap.Modal.getOrCreateInstance(this.container);
+		if (this.isModal) modal.hide();
 	}
 
 	loadFolder(folder_id = "") {

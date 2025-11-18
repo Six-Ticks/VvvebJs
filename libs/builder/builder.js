@@ -2475,6 +2475,11 @@ Vvveb.Builder = {
 		if(typeof stAjaxCall === 'function') {
 			stAjaxCall(action, data, 'POST').then(async (response) => {
 
+				// check the response for a new id
+				if (response && response.id) {
+					data["id"] = response.id;
+				}
+
 				// check the response for some html
 				data["startTemplateUrl"] = "";
 				if (response && response.html) {
@@ -2908,15 +2913,15 @@ Vvveb.Gui = {
 				// data['url']  = Vvveb.themeBaseUrl + data['url'];
 			}
 
-			if(data['type']) {
+			// if(data['type']) {
 				// data['folder'] = data['type'] + "s";
-				data['folder'] = data['folder'].replace(/'/g, '')
-					.replace(/'/g, '')
-					.replace(/[^0-9a-z/]+/gi, '-')
-					.trim()
-					.toLowerCase();
-				data['url'] = data['file'] = data['folder'] + "/" + data['file'];
-			}
+				// data['folder'] = data['folder'].replace(/'/g, '')
+				// 	.replace(/'/g, '')
+				// 	.replace(/[^0-9a-z/]+/gi, '-')
+				// 	.trim()
+				// 	.toLowerCase();
+				// data['url'] = data['file'] = data['folder'] + "/" + data['file'];
+			// }
 
 			e.preventDefault();
 			// return;
@@ -3867,6 +3872,9 @@ Vvveb.FileManager = {
 		this.tree = document.querySelector("#filemanager .tree > ol");
 		this.tree.replaceChildren();
 
+		this.tree.removeEventListener("click", function (e) { });
+		this.tree.removeEventListener("mouseenter", function (e) { });
+
 		this.tree.addEventListener("click", function (e) {
 			let element = event.target.closest("a");
 			if (element) {
@@ -4066,15 +4074,22 @@ Vvveb.FileManager = {
 		this.pages[name] = data;
 		data['name'] = name;
 
-		let folder = this.tree;
+		let folder = document.querySelector("#filemanager .tree > ol");
 		if (data.folder) {
-			if ((data.folder && data.folder != "/") && !(folder = folder.querySelector('li[data-folder="' + data.folder + '"]'))) {
-				data.folderTitle = friendlyName(data.folder);//data.folder[0].toUpperCase() + data.folder.slice(1);
-				folder = generateElements(tmpl("vvveb-filemanager-folder", data))[0];
-				this.tree.append(folder);
-			}
+			// if ((data.folder && data.folder != "/") && !(folder = folder.querySelector('li[data-folder="' + data.folder + '"]'))) {
+			// 	data.folderTitle = friendlyName(data.folder);//data.folder[0].toUpperCase() + data.folder.slice(1);
+			// 	folder = generateElements(tmpl("vvveb-filemanager-folder", data))[0];
+			// 	this.tree.append(folder);
+			// }
 
-			folder = folder.querySelector("ol");
+			// folder = folder.querySelector("ol");
+
+			// find the matching parent folder
+			if ((data.folder && data.folder != "/")
+				&& $(folder).find('li[data-folder-id="' + data.folder + '"] > ol').length
+			) {
+				folder = folder.querySelector('li[data-folder-id="' + data.folder + '"] > ol');
+			}
 		}
 
 		let page = generateElements(tmpl("vvveb-filemanager-page", data))[0];
@@ -4090,6 +4105,20 @@ Vvveb.FileManager = {
 		}
 
 		return page;
+	},
+
+	addFolder: function (name, id, parentid = "") {
+		let folder = document.querySelector("#filemanager .tree > ol");
+		if (parentid != "") {
+
+			// find the matching parent folder
+			folder = folder.querySelector('li[data-folder-id="' + parentid + '"] > ol');
+		}
+		let data = { folder: name, folderTitle: friendlyName(name) };
+		let folderElement = generateElements(tmpl("vvveb-filemanager-folder", data))[0];
+		$(folderElement).attr("data-folder-id", id);
+		folder.append(folderElement);
+		return folderElement;
 	},
 
 	addPages: function (pages) {
