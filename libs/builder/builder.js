@@ -2473,7 +2473,7 @@ Vvveb.Builder = {
 
 		// this means we're creating a new page
 		if(typeof stAjaxCall === 'function') {
-			stAjaxCall(action, data, 'POST').then(async (response) => {
+			stAjaxCall(action, data, 'POST', true).then(async (response) => {
 
 				// check the response for a new id
 				if (response && response.id) {
@@ -2516,17 +2516,6 @@ Vvveb.Builder = {
 					});
 			}).catch((err) => {
 				if (error) error(err);
-				let message = err?.statusText ?? "Error saving!";
-				displayToast("bg-danger", "Error", message);
-
-				if(err) {
-					if (err.hasOwnProperty('text')) err.text().then(errorMessage => {
-						let message = errorMessage.substr(0, 200);
-						displayToast("bg-danger", "Error", message);
-					});
-				} else {
-					displayToast("bg-danger", "Error", "Something went wrong!");
-				}
 			});
 		} else {
 			displayToast("bg-danger", "Error", "Something went wrong!");

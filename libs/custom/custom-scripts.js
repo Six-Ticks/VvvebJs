@@ -35,7 +35,7 @@ $(document).ready(function () {
 		stAjaxCall('createFolder', {
 			name: folderName,
 			parent: parent
-		}, 'POST').then(async (response) => {
+		}, 'POST', true).then(async (response) => {
 			if(response && response.success) {
 
 				// close the modal
@@ -250,7 +250,7 @@ function stAddFolderOptions(selectElement, folder, level = 0, parent = "") {
 
 var st_forms = {};
 
-function stAjaxCall(a, d = {}, t = 'GET') {
+function stAjaxCall(a, d = {}, t = 'GET', alert = false) {
 
 	// get the current page url
 	var url = new URL(window.location.href);
@@ -288,8 +288,28 @@ function stAjaxCall(a, d = {}, t = 'GET') {
 				}
 				resolve(r);
 			},
-			error: function() {
+			error: function(response) {
 				console.error('Ajax call failed:', a);
+				if(alert) {
+
+					// check if the response is valid JSON
+					var r = (response.responseJson && typeof response.responseJSON === 'object') ? response.responseJSON : response.responseText;
+					var alert_message = 'An error occurred while processing your request.';
+					if (typeof r === 'string') {
+						try {
+							r = JSON.parse(r);
+							if(r && r.message) {
+								alert_message = r.message;
+							}
+							if(r && r.errors) {
+								alert_message += '\n\n' + r.errors.join('\n');
+							}
+						} catch (e) {
+							console.error('Invalid JSON response:', r);
+						}
+					}
+					displayToast("bg-danger", "Error", alert_message);
+				}
 				reject();
 			}
 		});
