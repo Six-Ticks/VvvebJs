@@ -2969,6 +2969,15 @@ Vvveb.Gui = {
 		Vvveb.Gui.togglePanel("#filemanager", "--builder-filemanager-height");
 	},
 
+	toggleMediaManager: function () {
+		if (!Vvveb.MediaModal) {
+			Vvveb.MediaModal = new FileManager(true);
+			Vvveb.MediaModal.mediaPath = window.mediaPath;
+		}
+
+		Vvveb.MediaModal.open(null, null, false);
+	},
+
 	toggleLeftColumn: function () {
 		Vvveb.Gui.togglePanel("#left-panel", "--builder-left-panel-width");
 	},

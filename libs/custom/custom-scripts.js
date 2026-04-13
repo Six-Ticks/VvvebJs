@@ -112,6 +112,8 @@ $(document).ready(function () {
 		// update the link preview
 		stUpdatePageLinkPreview();
 	});
+
+	
 });
 
 function stUpdatePageLinkPreview() {

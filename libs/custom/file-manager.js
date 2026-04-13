@@ -158,7 +158,7 @@ class FileManager {
 		$(this.container).find('.save-btn').on('click', () => this.submit());
 	}
 
-	open(element, callback) {
+	open(element, callback, selectable = true) {
 		if (element instanceof Element) {
 			this.targetInput = element.dataset.targetInput;
 			this.targetThumb = element.dataset.targetThumb;
@@ -177,6 +177,11 @@ class FileManager {
 		this.init();
 
 		let modal = bootstrap.Modal.getOrCreateInstance(this.container);
+		if(selectable === false) {
+			$(this.container).find('.modal-footer').hide();
+		} else {
+			$(this.container).find('.modal-footer').show();
+		}
 		if (this.isModal) modal.show();
 	}
 
@@ -363,12 +368,38 @@ class FileManager {
 		$('#show-upload-btn').on('click', function() {
 			$('#file-upload-view').addClass('is-visible');
 		});
-		$('#back-to-manager-btn').on('click', function() {
+		$('#create-folder-btn').on('click', function() {
+			$('#create-folder-view').addClass('is-visible');
+		});
+		$('.back-to-manager-btn').on('click', function() {
 			$('#file-upload-view').removeClass('is-visible');
+			$('#create-folder-view').removeClass('is-visible');
 			if(self.fileUploaded) {
 				self.fileUploaded = false;
 				self.loadFolder();
 			}
+		});
+
+		// create folder submission
+		$('#create-folder-form').on('submit', function(e) {
+			e.preventDefault();
+			const folderName = $('#folder-name-input').val().trim();
+			if (!folderName) {
+				alert('Please enter a folder name');
+				return;
+			}
+
+			stAjaxCall('createDocumentFolder', { name: folderName, parent: self.getFolderId() }, 'POST', true)
+				.then(response => {
+					if (response && response.success) {
+						const folderId = response.folderId;
+						self.storeFolderId(folderId);
+						$('#folder-name-input').val('');
+						$('#create-folder-view').removeClass('is-visible');
+						self.loadFolder(folderId);
+						displayToast("bg-success", "Success", "Folder created successfully! The folder has been opened automatically.");
+					}
+				})
 		});
 
 		// register plugins
