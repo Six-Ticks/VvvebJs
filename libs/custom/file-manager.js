@@ -371,7 +371,8 @@ class FileManager {
 		$('#create-folder-btn').on('click', function() {
 			$('#create-folder-view').addClass('is-visible');
 		});
-		$('.back-to-manager-btn').on('click', function() {
+		$('.back-to-manager-btn').on('click', function(e) {
+			e.preventDefault();
 			$('#file-upload-view').removeClass('is-visible');
 			$('#create-folder-view').removeClass('is-visible');
 			if(self.fileUploaded) {

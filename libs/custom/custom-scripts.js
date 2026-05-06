@@ -24,6 +24,71 @@ $(document).ready(function () {
 		stUpdatePageLinkPreview();
     });
 
+	if($('#new-page-modal').length) {
+		$('#new-page-modal').on('shown.bs.modal', function () {
+
+			// check if custom templates have already been loaded
+			if(!$(this).data('templates-loaded')) {
+
+				// get the custom templates
+				stAjaxCall('getTemplates', {}, 'GET').then(async (response) => {
+					if(response && response.templates) {
+						const templates = response.templates;
+						let templateSelect = $('#new-page-modal select[name="template"]');
+
+						// create the optgroup element if we have templates
+						if(Object.keys(templates).length) {
+							var optgroup = $('<optgroup></optgroup>')
+								.attr('label', 'Custom Templates');
+							templateSelect.append(optgroup);
+							templateSelect = optgroup;
+						}
+
+						Object.keys(templates).forEach(function(id) {
+							const template = templates[id];
+
+							// build the option element
+							var option = $('<option></option>')
+								.attr('value', template.id)
+								.text(template.title);
+
+							// add the option to the select element
+							templateSelect.append(option);
+						});
+
+						// mark templates as loaded
+						$('#new-page-modal').data('templates-loaded', true);
+					}
+				});
+			}
+		});
+	}
+
+	$('#st-new-template').submit(function (e) {
+		e.preventDefault();
+
+		// first, get the page html
+		var html = Vvveb.Builder.getHtml();
+
+		// get the template details
+		var templateName = $(this).find('input[name="title"]').val();
+
+		// make the ajax call to create the template
+		stAjaxCall('createTemplate', {
+			name: templateName,
+			html: html
+		}, 'POST', true).then(async (response) => {
+			if(response && response.success) {
+
+				// close the modal
+				$('#st-new-template-modal').modal('hide');
+
+				// show success message
+				displayToast("bg-success", "Success", "Template created successfully.");
+			}
+		});
+	});
+
 	$('#st-new-folder').submit(function (e) {
 		e.preventDefault();
 
@@ -113,8 +178,116 @@ $(document).ready(function () {
 		stUpdatePageLinkPreview();
 	});
 
-	
+	$('#new-page-modal select[name="type"]').on('change', function() {
+		var selectedType = $(this).val();
+		switch(selectedType) {
+
+			// hide the folder select if it's a blog post
+			case 'blog':
+				$('#new-page-modal .st-parent-folder-select').closest('.mb-3').hide();
+				$('#new-page-modal .st-parent-folder-select').val('');
+				stUpdatePageLinkPreview();
+				changeFieldLabel($('#new-page-modal input[name="title"]').closest('.row').find('label'), $('#new-page-modal input[name="title"]'), 'Blog Name', 'My Blog');
+				$('#new-page-modal form .btn[type="submit"]').html('<i class="la la-check"></i> Create Blog');
+				changeFieldLabel($('#new-page-modal input[name="url"]').closest('.row').find('label'), $('#new-page-modal input[name="url"]'), 'Blog Link', 'my-blog');
+				break;
+			case 'page':
+				$('#new-page-modal .st-parent-folder-select').closest('.mb-3').show();
+				stUpdatePageLinkPreview();
+				changeFieldLabel($('#new-page-modal input[name="title"]').closest('.row').find('label'), $('#new-page-modal input[name="title"]'), 'Page Name', 'My Page');
+				$('#new-page-modal form .btn[type="submit"]').html('<i class="la la-check"></i> Create Page');
+				changeFieldLabel($('#new-page-modal input[name="url"]').closest('.row').find('label'), $('#new-page-modal input[name="url"]'), 'Page Link', 'my-page');
+				break;
+
+		}
+
+		function changeFieldLabel(label, field, name, placeholder = "") {
+			if(field.length) {
+				label.text(name);
+			}
+			if(placeholder !== "") {
+				field.attr('placeholder', placeholder);
+			}
+		}
+	});
+
+	$('#st-search-input').on('input change', function(e) {
+		e.preventDefault();
+		var searchTerm = $(this).val().toLowerCase();
+		var $allPages = $('#filemanager .file-tree.active li');
+
+		// reset the list if the search is cleared
+		if (searchTerm === '') {
+			$allPages.show();
+			return;
+		}
+
+		searchPages(searchTerm, $allPages);
+	});
+
+	$('#filemanager .clear-backspace').on('click', function(e) {
+		e.preventDefault();
+		$('#st-search-input').val('').trigger('input');
+	});
+
+	$('#filemanager-tabs .nav-link').on('click', function(e) {
+
+		// get the elements data-type attribute to determine which tab was clicked
+		var target = $(this).data('type');
+		if(target) {
+			stGetPages(target);
+		}
+	});
 });
+
+function searchPages(searchTerm, list, index = 1) {
+    let found = false;
+
+    // loop through all file manager items and toggle visibility based on the search term
+    list.each(function() {
+
+        // check this is not a nested list
+        if ($(this).parents('ol').length != index) {
+            return;
+        }
+
+        const isFolder = $(this).hasClass('folder');
+        var itemName = (isFolder) ? ($(this).data('folder') || '').toLowerCase() : ($(this).data('page') || '').toLowerCase();
+
+        if (itemName.includes(searchTerm)) {
+            found = true;
+            $(this).show();
+
+            // if a folder matches, make sure all of its contents are shown
+            if (isFolder) {
+                $(this).find('li').show();
+            }
+        } else {
+            if (!isFolder) {
+                $(this).hide();
+            } else {
+
+                // if it's a folder, also check if any child items match the search term
+                var childList = $(this).find('li');
+
+                if (childList.length) {
+                    var matchingChild = searchPages(searchTerm, childList, index + 1);
+
+                    if (matchingChild) {
+                        found = true;
+                        $(this).show();
+                    } else {
+                        $(this).hide();
+                    }
+                } else {
+                    $(this).hide();
+                }
+            }
+        }
+    });
+
+    return found;
+}
 
 function stUpdatePageLinkPreview() {
 
@@ -339,10 +512,10 @@ stAjaxCall('getFilePath', [], 'GET').then(async (response) => {
 	}
 });
 
-function stGetPages() {
+function stGetPages(type = 'page') {
 	let pages = {};
 
-	stAjaxCall('getPages', {}, 'GET').then(async (response) => {
+	stAjaxCall('getPages', {type: type}, 'GET').then(async (response) => {
 
 		Vvveb.Gui.init();
 		Vvveb.FileManager.init();
@@ -379,18 +552,24 @@ function stGetPages() {
 						title: page.title,
 						url: page.url,
 						folder: page.folder || null,
-						description: page.description || ''
+						description: page.description || '',
+						type: page.type || 'page'
 					};
 				}
 			});
 		}
 
 		let firstPage = Object.keys(pages)[0];
-		Vvveb.Builder.init(pages[firstPage]["url"], function () {});
+		if(firstPage) {
+			Vvveb.Builder.init(pages[firstPage]["url"], function () {});
+		} else {
+			Vvveb.Builder.init("", function () {});
+		}
 
 		Vvveb.FileManager.addPages(pages);
-		Vvveb.FileManager.loadPage(pages[firstPage]["name"]);
-		Vvveb.Gui.toggleRightColumn(false);
+		Vvveb.Builder.loadSplashscreen();
+		// Vvveb.FileManager.loadPage(pages[firstPage]["name"]);
+		// Vvveb.Gui.toggleRightColumn(false);
 		Vvveb.Breadcrumb.init();
 	});
 }

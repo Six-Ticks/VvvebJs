@@ -81,15 +81,31 @@
 					<i class="icon-layers-outline"></i>
 				</button>
 
-				<button class="btn btn-light" title="Download" id="download-btn" data-vvveb-action="download"
+				<!-- <button class="btn btn-light" title="Download" id="download-btn" data-vvveb-action="download"
 					data-v-download="index.html">
 					<i class="la la-download"></i>
-				</button>
+				</button> -->
 
 			</div>
 
 
-			<div class="btn-group me-2 float-end" role="group">
+			<div class="btn-group me-2 float-end d-none" role="group" id="save-btns">
+
+				<!-- Save as template button -->
+				<button class="btn btn-secondary btn-sm btn-icon save-template-btn" title="Save as template" data-bs-toggle="modal" data-bs-target="#st-new-template-modal">
+
+					<span class="loading d-none">
+						<i class="icon-save-outline"></i>
+						<span class="spinner-border spinner-border-sm align-middle" role="status" aria-hidden="true">
+						</span>
+						<span>Saving </span> ... </span>
+
+					<span class="button-text">
+						<i class="icon-copy-outline"></i> <span>Save as template</span>
+					</span>
+				</button>
+
+				<!-- Save page button -->
 				<button class="btn btn-primary btn-sm btn-icon save-btn" title="Save (Ctrl + S)" id="save-btn"
 					data-vvveb-action="saveAjax" data-vvveb-url="save.php" data-v-vvveb-shortcut="ctrl+e">
 
@@ -151,7 +167,30 @@
 			<div>
 				<div id="filemanager">
 					<div class="header">
-						<span class="text-secondary"><i class="la la-file la-lg"></i> Pages</span>
+
+						<ul class="nav nav-tabs nav-fill" id="filemanager-tabs" role="tablist">
+							<li class="nav-item">
+								<a class="nav-link active" id="pages-tab" data-bs-toggle="tab" href="#pages" data-type="page"
+									role="tab" aria-controls="pages" aria-selected="true" title="Pages">
+									<i class="la la-file-alt la-lg"></i>
+									<div><small>Pages</small></div>
+								</a>
+							</li>
+							<li class="nav-item">
+								<a class="nav-link" id="blogs-tab" data-bs-toggle="tab" href="#pages" data-type="blog"
+									role="tab" aria-controls="blogs" aria-selected="true" title="Blogs">
+									<i class="la la-newspaper la-lg"></i>
+									<div><small>Blogs</small></div>
+								</a>
+							</li>
+							<li class="nav-item">
+								<a class="nav-link" id="templates-tab" data-bs-toggle="tab" href="#pages" data-type="template"
+									role="tab" aria-controls="templates" aria-selected="false" title="Templates">
+									<i class="la la-copy la-lg"></i>
+									<div><small>Templates</small></div>
+								</a>
+							</li>
+						</ul>
 
 						<div class="btn-group responsive-btns float-end" role="group">
 							<button class="btn btn-outline-primary btn-sm btn-add" title="New Folder"
@@ -160,22 +199,34 @@
 							</button>
 							<button class="btn btn-outline-primary btn-sm btn-add" title="New page (Ctrl + Shift + P)"
 								id="new-file-btn" data-vvveb-action="newPage" data-vvveb-shortcut="">
-								<!-- <span>Add new</span> -->
 								<i class="icon-add"></i>
 							</button>
-
-							<!--  &ensp;
-									  <button class="btn btn-link text-dark p-0"  title="Delete file" id="delete-file-btn" data-vvveb-action="deletePage" data-vvveb-shortcut="">
-										  <i class="la la-trash"></i> <small>Delete</small>
-									  </button> -->
 						</div>
-
 					</div>
 
-					<div class="tree">
+					<div class="st-search">
+						<input class="form-control" id="st-search-input" placeholder="Search..." type="text"
+							data-vvveb-action="searchFileManager" data-vvveb-on="keyup">
+
+						<!-- clear button -->
+						<button class="clear-backspace btn" data-vvveb-action="clearSearch" title="Clear search">
+							<i class="la la-times"></i>
+					</div>
+
+					<div class="tree file-tree active" id="pages">
 						<ol>
 						</ol>
 					</div>
+
+					<!-- <div class="tree file-tree" id="st-blog-tree">
+						<ol>
+						</ol>
+					</div>
+
+					<div class="tree file-tree" id="st-template-tree">
+						<ol>
+						</ol>
+					</div> -->
 				</div>
 
 
@@ -1797,16 +1848,15 @@
 							<label class="col-sm-3 col-form-label">
 								Template
 								<abbr
-									title="The contents of this template will be used as a start for the new template">
+									title="The contents of this template will be used as a start for the new page">
 									<i class="la la-lg la-question-circle text-primary"></i>
 								</abbr>
 
 							</label>
 							<div class="col-sm-9 input">
 								<div>
-									<select class="form-select" name="startTemplateUrl">
-										<option value="blank">Blank Page Template</option>
-										<option value="blank">Blank Blog Template</option>
+									<select class="form-select" name="template">
+										<option value="">Blank Template</option>
 									</select>
 								</div>
 							</div>
@@ -1860,6 +1910,44 @@
 								class="la la-times"></i> Cancel</button>
 						<button class="btn btn-primary btn-icon" type="submit"><i class="la la-check"></i> Create
 							page</button>
+					</div>
+				</div>
+
+			</form>
+
+		</div>
+	</div>
+
+	<!-- new template modal-->
+	<div class="modal fade" id="st-new-template-modal" tabindex="-1" role="dialog">
+		<div class="modal-dialog" role="document">
+
+			<form id="st-new-template">
+
+				<div class="modal-content">
+					<div class="modal-header">
+						<span class="modal-title text-primary fw-normal"><i class="la la-lg la-file"></i> New
+							template</span>
+						<button type="button" class="btn-close p-0 me-1" data-bs-dismiss="modal" aria-label="Close"></button>
+					</div>
+
+					<div class="modal-body text">
+						<div class="mb-3 row" data-key="href">
+							<label class="col-sm-3 col-form-label">Template Name</label>
+							<div class="col-sm-9 input">
+								<div>
+									<input name="title" type="text" value="" class="form-control"
+										placeholder="My Template" required>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<div class="modal-footer">
+						<button class="btn btn-secondary btn-icon" type="reset" data-bs-dismiss="modal"><i
+								class="la la-times"></i> Cancel</button>
+						<button class="btn btn-primary btn-icon" type="submit"><i class="la la-check"></i> Create
+							template</button>
 					</div>
 				</div>
 

@@ -185,6 +185,44 @@ Vvveb.ComponentsGroup = {};
 Vvveb.SectionsGroup = {};
 Vvveb.BlocksGroup = {};
 
+Vvveb.splashScreenHtml = `
+<html class="st-no-edit">
+	<body>
+		<style>
+			.vvveb-splashscreen {
+				position: absolute;
+				top: 0;
+				left: 0;
+				width: 100%;
+				height: 100%;
+				background: #bebebe;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				z-index: 9999;
+			}
+			.vvveb-splashscreen-content {
+				text-align: center;
+			}
+			.vvveb-splashscreen-text p {
+				font-size: 1.2em;
+				color: #ffffff;
+			}
+			.vvveb-splashscreen-text {
+				font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", "Liberation Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+			}
+		</style>
+		<div class="vvveb-splashscreen">
+			<div class="vvveb-splashscreen-content">
+				<div class="vvveb-splashscreen-text">
+					<p>Select a page to edit, or create a new one.</p>
+				</div>
+			</div>
+		</div>
+	</body>
+</html>
+`;
+
 // Access control used to limit which elements can be edited based on user level
 Vvveb.Access = {
 	level: 3, // 1 - basic, 2 - medium, 3 - advanced
@@ -917,7 +955,7 @@ Vvveb.Builder = {
 	leftPanelWidth: 275,
 	ignoreClasses: ["clearfix", "masonry", "has-shadow"],
 
-	init: function (url, callback) {
+	init: function (url, callback, init = true) {
 
 		let self = this;
 
@@ -936,7 +974,9 @@ Vvveb.Builder = {
 
 		self._initDragdrop();
 
-		self._initBox();
+		if(init) {
+			self._initBox();
+		}
 
 		self.dragElement = null;
 
@@ -1148,13 +1188,51 @@ Vvveb.Builder = {
 						// load the HTML into the iframe
 						self.iframe.setAttribute('srcdoc', html);
 
+						// show save buttons
+						$('#save-btns').removeClass('d-none');
+
 					} else {
+
+						// hide save buttons
+						$('#save-btns').addClass('d-none');
+
 						displayToast("bg-danger", "Error", "Error loading page: " + response.message);
 					}
 				}
 			});
 		}
 		// if (Vvveb.Builder.iframe.src != url) Vvveb.Builder.iframe.src = url;
+	},
+
+	loadSplashscreen: function () {
+		let self = this;
+
+		// hides the editor and shows a splashscreen with a placeholder message
+		document.getElementById("select-box").style.display = "block";
+		document.querySelector(".loading-message").classList.remove("active");
+
+		self.iframe.onload = () => {
+			const doc = self.iframe.contentDocument;
+			const head = doc.head;
+			const body = doc.body;
+
+			if (Vvveb.splashScreenCss) {
+				const style = doc.createElement('style');
+				style.classList.add('st-ignore');
+				style.textContent = Vvveb.splashScreenCss;
+				head.appendChild(style);
+			}
+
+			if (Vvveb.splashScreenJs) {
+				const script = doc.createElement('script');
+				script.classList.add('st-ignore');
+				script.textContent = Vvveb.splashScreenJs;
+				body.appendChild(script)
+			}
+		};
+
+		self.iframe.setAttribute('srcdoc', Vvveb.splashScreenHtml);
+		$('#save-btns').addClass('d-none');
 	},
 
 	loadPageID: function (id, callback) {
@@ -2466,7 +2544,7 @@ Vvveb.Builder = {
 		}
 
 		var action = 'createPage';
-		if (!data["startTemplateUrl"]) {
+		if (!data["template"]) {
 			data["html"] = this.getHtml();
 			action = 'updatePage';
 		}
@@ -3870,70 +3948,76 @@ Vvveb.FileManager = {
 		this.tree = document.querySelector("#filemanager .tree > ol");
 		this.tree.replaceChildren();
 
-		this.tree.removeEventListener("click", function (e) { });
-		this.tree.removeEventListener("mouseenter", function (e) { });
+		// if an abort controller already exists from a previous init, trigger it to remove old listeners
+		if (this.listenerController) {
+			this.listenerController.abort();
+		}
+
+		// create a new controller for this current initialisation
+		this.listenerController = new AbortController();
+		const signalOptions = { signal: this.listenerController.signal };
 
 		this.tree.addEventListener("click", function (e) {
-			let element = event.target.closest("a");
+			let element = e.target.closest("a");
 			if (element) {
 				e.stopImmediatePropagation();
 				if (element.classList.contains('view')) return;
 				e.preventDefault();
 				return false;
 			}
-		});
+		}, signalOptions);
 
 		this.tree.addEventListener("click", function (e) {
-			let element = event.target.closest(".delete");
+			let element = e.target.closest(".delete");
 			if (element) {
 				Vvveb.FileManager.deletePage(element.closest("li"), e);
 				e.stopImmediatePropagation();
 				e.preventDefault();
 				return false;
 			}
-		});
+		}, signalOptions);
 
 		this.tree.addEventListener("click", function (e) {
-			let element = event.target.closest(".rename");
+			let element = e.target.closest(".rename");
 			if (element) {
 				Vvveb.FileManager.renamePage(element.closest("li"), e, false);
 				e.stopImmediatePropagation();
 				e.preventDefault();
 				return false;
 			}
-		});
+		}, signalOptions);
 
 		this.tree.addEventListener("click", function (e) {
-			let element = event.target.closest(".duplicate");
+			let element = e.target.closest(".duplicate");
 			if (element) {
 				Vvveb.FileManager.renamePage(element.closest("li"), e, true);
 				e.stopImmediatePropagation();
 				e.preventDefault();
 				return false;
 			}
-		});
+		}, signalOptions);
 
 		this.tree.addEventListener("click", function (e) {
-			let element = event.target.closest("li[data-page] label");
+			let element = e.target.closest("li[data-page] label");
 			if (element) {
 				let page = element.parentNode.dataset.page;
 				if (page) Vvveb.FileManager.loadPage(page, allowedComponents);
 				e.preventDefault();
 				return false;
 			}
-		});
+		}, signalOptions);
 
 		this.tree.addEventListener("click", function (e) {
-			let element = event.target.closest("li[data-component] label");
+			let element = e.target.closest("li[data-component] label");
 			if (element) {
 				const node = e.currentTarget.parentNode._node;
 				node.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
 				node.click();
 			}
-		});
+		}, signalOptions);
 
 		this.tree.addEventListener("mouseenter", function (e) {
-			let element = event.target.closest("li[data-component] label");
+			let element = e.target.closest("li[data-component] label");
 			if (element) {
 				const node = e.currentTarget.parentNode._node;
 				node.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
@@ -3944,7 +4028,7 @@ Vvveb.FileManager = {
 				}));
 				//node.trigger("mousemove");
 			}
-		});
+		}, signalOptions);
 	},
 
 	clear: function () {
