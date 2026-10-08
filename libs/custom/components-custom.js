@@ -3,6 +3,74 @@ Vvveb.ComponentsGroup['Custom'] =
 
 let stNavbarExtended = false;
 
+// Select2Input: the input for an entity-linked block field (the field type is an entity tablename).
+// The entity's records are searched through the CRM's search-select2.php, the same way CRM screens search them.
+let Select2Input = { ...SelectInput, ...{
+
+	init: function(data) {
+		let element = this.render("select", {key: data.key, options: []});
+		let select = element.querySelector('select');
+		select.dataset.entity = data.entity || '';
+		select.dataset.url = data.url || '';
+		return element;
+	},
+
+	setValue: function(value) {
+		SelectInput.setValue.call(this, value);
+		if (this.element && this.element[0]) {
+			$(this.element[0].querySelector('select')).trigger('change.select2');
+		}
+	},
+
+	// select2 is initialised once the input is in the properties panel
+	afterInit: function(element) {
+		let select = element.querySelector('select');
+		if (!select
+			|| $(select).hasClass('select2-hidden-accessible')
+		) {
+			return;
+		}
+
+		$(select).select2({
+			width: '100%',
+			ajax: {
+				url: window.location.origin + '/' + select.dataset.url,
+				dataType: 'json',
+				delay: 250,
+				data: function(params) {
+					return {
+						q: params.term,
+						field: 'vvveb-' + select.name,
+						sdid: 'search-entity',
+						entity: select.dataset.entity,
+						page: params.page
+					};
+				},
+				processResults: function(data, params) {
+					params.page = params.page || 1;
+					return {
+						results: data.items,
+						pagination: {
+							more: (params.page * 30) < data.total_count
+						}
+					};
+				},
+				cache: true
+			},
+			escapeMarkup: function (markup) { return markup; },
+			minimumInputLength: 0,
+			templateResult: formatRepo,
+			templateSelection: formatRepoSelection
+		});
+
+		// select2 only fires jQuery events - pass the choice on to Vvveb as a native change event
+		$(select).on('select2:select select2:unselect', function() {
+			select.dispatchEvent(new Event('change', { bubbles: true }));
+		});
+	}
+  }
+};
+
 stAjaxCall("getComponents").then((components) => {
 	processComponents(components);
 
@@ -88,6 +156,9 @@ function processComponents(components) {
 								break;
 							case 'select':
 								properties[i].inputtype = SelectInput;
+								break;
+							case 'select2':
+								properties[i].inputtype = Select2Input;
 								break;
 							default:
 								properties[i].inputtype = TextInput;
@@ -1480,7 +1551,18 @@ function componentInit(component, node) {
 					var propValue = response.values[prop.key] || "";
 					var propElement = $(prop.input).find('[name="' + prop.key + '"]');
 					if(propElement.length) {
+
+						// entity-linked (select2) fields only hold the options searched for, so add the saved record
+						var propLabel = (response.labels && response.labels[prop.key]) ? response.labels[prop.key] : "";
+						if(propLabel !== ""
+							&& propElement.find('option').filter(function() { return this.value == propValue; }).length === 0
+						) {
+							propElement.append(new Option(propLabel, propValue, true, true));
+						}
 						propElement.val(propValue);
+						if(propElement.hasClass('select2-hidden-accessible')) {
+							propElement.trigger('change.select2');
+						}
 					}
 					Vvveb.Components.updateProperty("custom/" + component.type, prop.key, propValue);
 				});
