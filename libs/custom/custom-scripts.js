@@ -1,7 +1,22 @@
 $(document).ready(function () {
 
-	// build the page folders on load
-	stBuildPageFolders();
+	// set up the article Folder fields (New page + Page Details) before the folders load
+	stInitArticleFolderFields();
+
+	// load the folder paths used for the URL folder suggestions
+	stLoadFolderPaths();
+
+	// suggest existing folders while typing a page URL
+	stFolderSuggest($('#new-page-modal input[name="url"]'), $('#new-page-modal .st-folder-suggestions'), function() {
+		return stBuildPageLink($('#new-page-modal input[name="title"]').val());
+	}, function() {
+		return $('#new-page-modal select[name="type"]').val() || 'page';
+	});
+	stFolderSuggest($('#st-page-details-link'), $('#st-page-details-folder-suggestions'), function() {
+		return stSplitPagePath(stPageDetailsModal._originalLink).slug;
+	}, function() {
+		return stPageDetailsModal._type || 'page';
+	});
 
 	// build the file manager nav items
 	stBuildNavItems();
@@ -9,42 +24,17 @@ $(document).ready(function () {
 	// close the right panel
 	Vvveb.Gui.toggleRightColumn(false);
 
-	var folder_select = $('select.st-parent-folder-select');
-	folder_select.on('mousedown', function() {
-
-        // loop through all options and set their text to the prefixed version
-        $(this).find('option').each(function() {
-            $(this).text($(this).data('prefixed-name'));
-        });
-    });
-
-	folder_select.on('change', function() {
-
-        // get just the one option that was selected
-        var selectedOption = $(this).find('option:selected');
-
-        // set the selected option's text to the clean version
-        selectedOption.text(selectedOption.data('clean-name'));
-
-		// update the link preview
-		stUpdatePageLinkPreview();
-    });
-
 	if($('#new-page-modal').length) {
 		$('#new-page-modal').on('shown.bs.modal', function () {
 			if(!$(this).data('templates-loaded')) {
 				loadTemplates();
 			}
+
+			// refresh the article folders (new ones may have been created)
+			stNewArticleFolder?.build();
 		});
 	}
 
-	if($('#st-new-folder-modal').length) {
-		$('#st-new-folder-modal').on('shown.bs.modal', function () {
-			if(!$(this).data('templates-loaded')) {
-				loadTemplates();
-			}
-		});
-	}
 
 	$('#st-new-template').submit(function (e) {
 		e.preventDefault();
@@ -54,12 +44,10 @@ $(document).ready(function () {
 
 		// get the template details
 		var templateName = $(this).find('input[name="title"]').val();
-		var folder = $(this).find('select[name="folder"]').val();
 
 		// make the ajax call to create the template
 		stAjaxCall('createTemplate', {
 			name: templateName,
-			folder: folder,
 			html: html
 		}, 'POST', true).then(async (response) => {
 			if(response && response.success) {
@@ -70,40 +58,8 @@ $(document).ready(function () {
 				// reload the templates
 				stGetPages('template');
 
-				// rebuild the page folders
-				stBuildPageFolders();
-
 				// show success message
 				displayToast("bg-success", "Success", "Template created successfully.");
-			}
-		});
-	});
-
-	$('#st-new-folder').submit(function (e) {
-		e.preventDefault();
-
-		// get the folder details
-		var folderName = $(this).find('input[name="title"]').val();
-		var parent = $(this).find('select[name="parent"]').val();
-
-		// make the ajax call to create the folder
-		stAjaxCall('createFolder', {
-			name: folderName,
-			parent: parent
-		}, 'POST', true).then(async (response) => {
-			if(response && response.success) {
-
-				// close the modal
-				$('#st-new-folder-modal').modal('hide');
-
-				// get the currently selected page type from the file manager tabs
-				const selectedType = $('#filemanager-tabs .nav-link.active').data('type') || 'page';
-
-				// reload the pages
-				stGetPages(selectedType);
-
-				// rebuild the page folders
-				stBuildPageFolders();
 			}
 		});
 	});
@@ -115,8 +71,11 @@ $(document).ready(function () {
 		var title = $('#new-page-modal input[name="title"]').val();
 		var pageLink = stBuildPageLink(title);
 
-		// check if the link matches the built link
-		if($(this).val() != pageLink) {
+		// keep the article Folder field in step with a typed folder path
+		stNewArticleFolder?.sync();
+
+		// check if the page slug (the part after any folder path) matches the built link
+		if(stSplitPagePath($(this).val()).slug != pageLink) {
 
 			// mark as changed
 			$(this).data('changed', true);
@@ -151,13 +110,15 @@ $(document).ready(function () {
 		var title = $(this).val();
 		var pageLink = stBuildPageLink(title);
 
-		// only update the link if it hasn't been changed manually or it matches the built link
+		// only update the link if it hasn't been changed manually or it matches the built link - any
+		// folder path typed before the slug is kept
+		var urlParts = stSplitPagePath($('#new-page-modal input[name="url"]').val());
 		if(!linkChanged) {
-			$('#new-page-modal input[name="url"]').val(pageLink);
+			$('#new-page-modal input[name="url"]').val(urlParts.prefix + pageLink);
 		} else {
 
 			// check if the link now matches the built link
-			var currentLink = $('#new-page-modal input[name="url"]').val();
+			var currentLink = urlParts.slug;
 			if(currentLink == pageLink
 				|| currentLink == ''
 			) {
@@ -175,28 +136,26 @@ $(document).ready(function () {
 		var selectedType = $(this).val();
 		switch(selectedType) {
 
-			// hide the folder select if it's a blog post
-			case 'blog':
-				$('#new-page-modal .st-parent-folder-select').closest('.mb-3').hide();
-				$('#new-page-modal .st-parent-folder-select').val('');
+			case 'article':
+				stNewArticleFolder?.show();
 				$('#new-page-modal input[name="url"]').closest('.row').show();
 				stUpdatePageLinkPreview();
 				changeFieldLabel(
 					$('#new-page-modal input[name="title"]').closest('.row').find('label'),
 					$('#new-page-modal input[name="title"]'),
-					'Blog Name',
-					'My Blog'
+					'Article Name',
+					'My Article'
 				);
-				$('#new-page-modal form .btn[type="submit"]').html('<i class="la la-check"></i> Create Blog');
+				$('#new-page-modal form .btn[type="submit"]').html('<i class="la la-check"></i> Create Article');
 				changeFieldLabel(
 					$('#new-page-modal input[name="url"]').closest('.row').find('label'),
 					$('#new-page-modal input[name="url"]'),
-					'Blog Link',
-					'my-blog'
+					'Article Link',
+					'folder/my-article'
 				);
 				break;
 			case 'page':
-				$('#new-page-modal .st-parent-folder-select').closest('.mb-3').show();
+				stNewArticleFolder?.hide();
 				$('#new-page-modal input[name="url"]').closest('.row').show();
 				stUpdatePageLinkPreview();
 				changeFieldLabel(
@@ -210,11 +169,11 @@ $(document).ready(function () {
 					$('#new-page-modal input[name="url"]').closest('.row').find('label'),
 					$('#new-page-modal input[name="url"]'),
 					'Page Link',
-					'my-page'
+					'folder/my-page'
 				);
 				break;
 			case 'template':
-				$('#new-page-modal .st-parent-folder-select').closest('.mb-3').show();
+				stNewArticleFolder?.hide();
 				$('#new-page-modal input[name="url"]').closest('.row').hide();
 				stUpdatePageLinkPreview();
 				changeFieldLabel(
@@ -226,7 +185,7 @@ $(document).ready(function () {
 				$('#new-page-modal form .btn[type="submit"]').html('<i class="la la-check"></i> Create Template');
 				break;
 			case 'menu':
-				$('#new-page-modal .st-parent-folder-select').closest('.mb-3').hide().val('');
+				stNewArticleFolder?.hide();
 				$('#new-page-modal input[name="url"]').closest('.row').hide().val('');
 				$('#new-page-modal input[name="template"]').closest('.mb-3').hide().val('');
 				stUpdatePageLinkPreview();
@@ -239,7 +198,7 @@ $(document).ready(function () {
 				$('#new-page-modal form .btn[type="submit"]').html('<i class="la la-check"></i> Create Menu');
 				break;
 			case 'footer':
-				$('#new-page-modal .st-parent-folder-select').closest('.mb-3').hide().val('');
+				stNewArticleFolder?.hide();
 				$('#new-page-modal input[name="url"]').closest('.row').hide().val('');
 				$('#new-page-modal input[name="template"]').closest('.mb-3').hide().val('');
 				stUpdatePageLinkPreview();
@@ -527,26 +486,8 @@ function searchPages(searchTerm, list, index = 1) {
 
 function stUpdatePageLinkPreview() {
 
-	// get the page link value
-	var link = $('#new-page-modal input[name="url"]').val();
-
-	// get the selected folder
-	var selectedFolder = $('#new-page-modal select[name="folder"] option:selected');
-	var folderLink = selectedFolder.attr('data-link');
-
-	// check if the folder has a parent
-	var parent = selectedFolder.data('parent');
-	while(parent) {
-
-		// get the parent option
-		var parentOption = $('#new-page-modal select[name="folder"] option[value="' + parent + '"]');
-
-		// prepend the parent link
-		folderLink = parentOption.attr('data-link') + '/' + folderLink;
-
-		// get the next parent
-		parent = parentOption.data('parent');
-	}
+	// get the typed page path (folder path + page slug)
+	var link = ($('#new-page-modal input[name="url"]').val() || '').trim().replace(/^\/+|\/+$/g, '');
 
 	// build the full link
 	var fullLink = website_url;
@@ -556,10 +497,7 @@ function stUpdatePageLinkPreview() {
 		fullLink = fullLink.slice(0, -1);
 	}
 
-	// add the folder & link
-	if(folderLink) {
-		fullLink += '/' + folderLink;
-	}
+	// add the path
 	if(link) {
 		fullLink += '/' + link;
 	}
@@ -573,6 +511,25 @@ function stUpdatePageLinkPreview() {
 	$('#st-page-link-preview').text(fullLink);
 }
 
+/**
+ * stSplitPagePath: Splits a typed page path into the folder prefix (including the trailing slash) and the page slug.
+ *
+ * @param {string} path - E.g. "news/2026/my-page"
+ * @returns {{prefix: string, folder: string, slug: string}}
+ */
+function stSplitPagePath(path) {
+	path = (path || '').replace(/^\/+/, '');
+	var index = path.lastIndexOf('/');
+	if(index === -1) {
+		return { prefix: '', folder: '', slug: path };
+	}
+	return {
+		prefix: path.substring(0, index + 1),
+		folder: path.substring(0, index).replace(/\/+$/, ''),
+		slug: path.substring(index + 1)
+	};
+}
+
 function stBuildPageLink(title) {
 	var link = title.toLowerCase().trim()
 		.replace(/[^a-z0-9\s-]/g, '')
@@ -581,118 +538,307 @@ function stBuildPageLink(title) {
 	return link;
 }
 
-function stBuildPageFolders() {
+// the website's page folders as {path, type} (E.g. {path: "news/2026", type: "article"}), used for the URL
+// folder suggestions - type is the folder's effective type: its own, its nearest typed ancestor's, or "page"
+var stFolderPaths = [];
 
-    // get a list of available page folders
-    stAjaxCall('getPageFolders', {}, 'GET').then(async (response) => {
-        if(response) {
-			stBuildPageFoldersSelect(response);
+// the raw folder tree from getPageFolders (used for the article folder tree select)
+var stFolderTree = {};
 
-            // convert nested object response into treeselect's format
-            var treeselectOptions = formatForTreeselect(response);
-            var folderContainers = $('.st-parent-folder-container');
+// the article Folder tree selects in the New page and Page Details modals (see stArticleFolderField)
+var stNewArticleFolder = null;
+var stDetailsArticleFolder = null;
 
-            folderContainers.each(function () {
-                var containerDiv = this;
-
-                // clear out any existing treeselect instances
-                containerDiv.innerHTML = '';
-
-                // initialise treeselect
-                var domEl = new Treeselect({
-                    parentHtmlContainer: containerDiv,
-                    value: null,
-                    options: treeselectOptions,
-                    isSingleSelect: true,
-                    placeholder: 'Select a folder',
-                    searchable: true,
-					inputCallback: (selectedValue) => {
-						console.log('User selected folder ID:', selectedValue);
-
-						// set the value of the hidden select field to the selected folder ID
-						$(containerDiv).closest('.input').find('select.st-parent-folder-select').val(selectedValue).trigger('change');
-					}
-                });
-            });
-        }
-    });
-}
-
-// convert the nested folder object into the format for Treeselect
-function formatForTreeselect(folderObject) {
-    if (!folderObject || Object.keys(folderObject).length === 0) {
-        return [];
-    }
-
-    return Object.keys(folderObject).map(function(key) {
-        var folder = folderObject[key];
-
-        var node = {
-            name: folder.name,
-            value: folder.id
-        };
-
-        // if this folder has children, recursively process them
-        if (folder.children && Object.keys(folder.children).length > 0) {
-            node.children = formatForTreeselect(folder.children);
-        }
-
-        return node;
-    });
-}
-
-function stBuildPageFoldersSelect(response) {
-	if(response) {
-		var folderSelect = $('.st-parent-folder-select');
-		folderSelect.each(function () {
-			var currentFolder = $(this);
-
-			// clear the existing options
-			currentFolder.empty();
-
-			// add a blank option
-			var blankOption = $('<option></option>')
-				.attr('value', '')
-				.attr('selected', 'selected')
-				.text('- none -');
-			currentFolder.append(blankOption);
-
-			// loop through the folders and add them to the select
-			if(Object.keys(response).length) {
-				Object.keys(response).forEach(function(folder) {
-					var curr_folder = response[folder];
-					stAddFolderOptions(currentFolder, curr_folder);
-				});
+/**
+ * stLoadFolderPaths: Loads the website's page folders and flattens them into full paths.
+ */
+function stLoadFolderPaths() {
+	stAjaxCall('getPageFolders', {}, 'GET').then(function(response) {
+		var paths = [];
+		var addFolders = function(folders, parentPath, parentType) {
+			if(!folders) {
+				return;
 			}
+			Object.keys(folders).forEach(function(key) {
+				var folder = folders[key];
+				if(!folder || !folder.link) {
+					return;
+				}
+				var path = parentPath ? parentPath + '/' + folder.link : folder.link;
+				var type = folder.type || parentType || 'page';
+				paths.push({ path: path, type: type });
+				addFolders(folder.children, path, type);
+			});
+		};
+		stFolderTree = response || {};
+		addFolders(response, '', '');
+		stFolderPaths = paths.sort(function(a, b) {
+			return a.path.localeCompare(b.path);
 		});
-	}
+		stNewArticleFolder?.build();
+		stDetailsArticleFolder?.build();
+	}).catch(function() {});
 }
 
-function stAddFolderOptions(selectElement, folder, level = 0, parent = "") {
+/**
+ * stBuildArticleFolderOptions: Builds the Treeselect options for the article folders - folders whose effective
+ *  type is "article" (their own type, or their nearest typed ancestor's, or "page"), nested as in the folder
+ *  tree. Non-article folders are skipped, with any article folders inside them moved up to their level.
+ *
+ * @param {object} folders - The folder tree (getPageFolders).
+ * @param {string} parentPath - The parent folder's path.
+ * @param {string} parentType - The parent folder's effective type.
+ * @returns {Array}
+ */
+function stBuildArticleFolderOptions(folders, parentPath, parentType) {
+	var options = [];
+	if(!folders) {
+		return options;
+	}
+	Object.keys(folders).forEach(function(key) {
+		var folder = folders[key];
+		if(!folder || !folder.link) {
+			return;
+		}
+		var path = parentPath ? parentPath + '/' + folder.link : folder.link;
+		var type = folder.type || parentType || 'page';
+		var children = stBuildArticleFolderOptions(folder.children, path, type);
+		if(type === 'article') {
+			options.push({ name: folder.name, value: path, children: children });
+		} else {
+			options = options.concat(children);
+		}
+	});
+	return options;
+}
 
-	// build the option element
-	var option = $('<option></option>')
-		.attr('value', folder.id)
-		.attr('data-link', folder.link)
-		.text(folder.name);
+/**
+ * stArticleFolderField: An article Folder field - a tree select (Treeselect) of the article folders, with
+ *  sub-folders nested - tied to a page URL input. Choosing a folder puts its path in front of the page slug in
+ *  the URL input, and typing a folder path in the URL input selects it (or clears it for a new folder).
+ *
+ * @param {object} opts
+ * @param {jQuery} opts.row - The field's row (hidden unless the page is an article).
+ * @param {jQuery} opts.container - The Treeselect container.
+ * @param {jQuery} opts.hidden - The hidden input holding the chosen folder path.
+ * @param {jQuery} opts.input - The page URL input.
+ * @param {function} opts.isActive - Returns TRUE when the page is an article.
+ * @param {function} [opts.defaultSlug] - Returns the slug to use when the URL has none.
+ * @param {function} [opts.beforeApply] - Called before a chosen folder is written to the URL input.
+ * @param {function} [opts.afterApply] - Called after a chosen folder is written to the URL input.
+ * @returns {{build: function, sync: function, show: function, hide: function}}
+ */
+function stArticleFolderField(opts) {
+	var tree = null;
+	var syncing = false;
 
-	// add the parent id if it exists
-	if(parent != "") {
-		option.data('parent', parent);
+	var setValue = function(path) {
+		opts.hidden.val(path || '');
+		if(tree && typeof tree.updateValue === 'function') {
+			syncing = true;
+			try {
+				tree.updateValue(path || null);
+			} finally {
+				syncing = false;
+			}
+		}
+	};
+
+	var apply = function(path) {
+		if(typeof opts.beforeApply === 'function') {
+			opts.beforeApply();
+		}
+		var slug = stSplitPagePath(opts.input.val()).slug || ((typeof opts.defaultSlug === 'function') ? (opts.defaultSlug() || '') : '');
+		opts.input.val((path ? path + '/' : '') + slug).trigger('input');
+		if(typeof opts.afterApply === 'function') {
+			opts.afterApply();
+		}
+	};
+
+	var field = {
+
+		// (re)builds the tree select from the folder tree, keeping a still-valid choice
+		build: function() {
+			if(!opts.container.length || typeof Treeselect === 'undefined') {
+				return;
+			}
+			var current = opts.hidden.val() || '';
+			var exists = current !== '' && stFolderPaths.some(function(folder) {
+				return folder.type === 'article' && folder.path === current;
+			});
+			opts.container[0].innerHTML = '';
+			tree = new Treeselect({
+				parentHtmlContainer: opts.container[0],
+				value: exists ? current : null,
+				options: stBuildArticleFolderOptions(stFolderTree, '', ''),
+				isSingleSelect: true,
+				searchable: true,
+				placeholder: 'Choose a folder',
+				inputCallback: function(path) {
+					opts.hidden.val(path || '');
+					if(!syncing) {
+						apply(path || '');
+					}
+				}
+			});
+			opts.hidden.val(exists ? current : '');
+			field.sync();
+		},
+
+		// selects the folder typed in the URL input (blank when it isn't an existing article folder)
+		sync: function() {
+			if(!opts.isActive()) {
+				return;
+			}
+			var folder = stSplitPagePath(opts.input.val()).folder.toLowerCase();
+			var match = stFolderPaths.find(function(item) {
+				return item.type === 'article' && folder !== '' && item.path.toLowerCase() === folder;
+			});
+			var value = match ? match.path : '';
+			if(value !== (opts.hidden.val() || '')) {
+				setValue(value);
+			}
+		},
+
+		show: function() {
+			opts.row.removeClass('d-none');
+			field.sync();
+		},
+
+		// hides and clears the field - it is only used for articles
+		hide: function() {
+			opts.row.addClass('d-none');
+			setValue('');
+		}
+	};
+	return field;
+}
+
+/**
+ * stInitArticleFolderFields: Sets up the article Folder fields in the New page and Page Details modals.
+ */
+function stInitArticleFolderFields() {
+	stNewArticleFolder = stArticleFolderField({
+		row: $('#new-page-modal [data-key="article-folder"]'),
+		container: $('#new-page-modal .st-article-folder-container'),
+		hidden: $('#new-page-modal input[name="article_folder"]'),
+		input: $('#new-page-modal input[name="url"]'),
+		isActive: function() {
+			return $('#new-page-modal select[name="type"]').val() === 'article';
+		},
+		defaultSlug: function() {
+			return stBuildPageLink($('#new-page-modal input[name="title"]').val());
+		},
+		afterApply: function() {
+			stUpdatePageLinkPreview();
+		}
+	});
+
+	stDetailsArticleFolder = stArticleFolderField({
+		row: $('#st-page-details-modal [data-key="details-article-folder"]'),
+		container: $('#st-page-details-modal .st-details-article-folder-container'),
+		hidden: $('#st-page-details-article-folder'),
+		input: $('#st-page-details-link'),
+		isActive: function() {
+			return stPageDetailsModal._type === 'article';
+		},
+		defaultSlug: function() {
+			return stSplitPagePath(stPageDetailsModal._originalLink).slug;
+		},
+		beforeApply: function() {
+
+			// a folder change is a URL change - unlock the URL so it is saved
+			stPageDetailsModal.unlockLink();
+		}
+	});
+
+	// keep the Page Details Folder field in step with the typed URL
+	$('#st-page-details-link').on('input', function() {
+		stDetailsArticleFolder?.sync();
+	});
+}
+
+/**
+ * stFolderSuggest: Shows the existing folders that match what is being typed into a page URL input, so
+ *  folders can be re-used by typing. Choosing a suggestion puts it in front of the page slug.
+ *
+ * @param {jQuery} input - The URL input.
+ * @param {jQuery} container - The .st-folder-suggestions list-group shown below the input.
+ * @param {function} [defaultSlug] - Returns a slug to use when the input has no slug yet (E.g. from the page title).
+ * @param {function} [getType] - Returns the page type (E.g. "page", "article") - only folders of that type are suggested.
+ */
+function stFolderSuggest(input, container, defaultSlug, getType) {
+	if(!input.length || !container.length) {
+		return;
 	}
 
-	// add the option to the select element
-	selectElement.append(option);
+	var hide = function() {
+		container.addClass('d-none').empty();
+	};
 
-	// check for child folders
-	if(folder.children && Object.keys(folder.children).length) {
-		level++;
+	var show = function() {
+		var value = (input.val() || '').trim().replace(/^\/+/, '').toLowerCase();
+		if(value === '' || input.prop('readonly')) {
+			hide();
+			return;
+		}
 
-		// loop through the child folders
-		Object.keys(folder.children).forEach(function(childKey) {
-			stAddFolderOptions(selectElement, folder.children[childKey], level, folder.id);
+		// match folders of this page type containing the typed text, skipping folders the path is already in
+		var type = (typeof getType === 'function') ? (getType() || 'page') : 'page';
+		var matches = stFolderPaths.filter(function(folder) {
+			return folder.type === type
+				&& folder.path.toLowerCase().indexOf(value) !== -1
+				&& value.indexOf(folder.path.toLowerCase() + '/') !== 0;
+		}).map(function(folder) {
+			return folder.path;
+		}).slice(0, 8);
+
+		container.empty();
+		if(!matches.length) {
+			hide();
+			return;
+		}
+		matches.forEach(function(path) {
+			$('<button type="button" class="list-group-item list-group-item-action py-1 small"></button>')
+				.append($('<i class="la la-folder me-1"></i>'))
+				.append(document.createTextNode(path + '/'))
+				.attr('data-path', path)
+				.appendTo(container);
 		});
-	}
+		container.removeClass('d-none');
+	};
+
+	input.on('input focus', show);
+	input.on('keydown', function(e) {
+		if(e.key === 'Escape') {
+			hide();
+		}
+	});
+	input.on('blur', function() {
+
+		// delay so a click on a suggestion still registers
+		setTimeout(hide, 200);
+	});
+
+	// choosing a suggestion puts the folder in front of the page slug
+	container.on('mousedown', '[data-path]', function(e) {
+		e.preventDefault();
+		var slug = stSplitPagePath(input.val()).slug;
+
+		// a slug that only matched the folder name is the start of the folder, not the page slug
+		if(slug && $(this).data('path').toLowerCase().indexOf(slug.toLowerCase()) !== -1 && (input.val() || '').indexOf('/') === -1) {
+			slug = '';
+		}
+		if(!slug && typeof defaultSlug === 'function') {
+			slug = defaultSlug() || '';
+		}
+		input.val($(this).data('path') + '/' + slug).trigger('input');
+		hide();
+		input.trigger('focus');
+		if(typeof stUpdatePageLinkPreview === 'function') {
+			stUpdatePageLinkPreview();
+		}
+	});
 }
 
 
@@ -800,14 +946,27 @@ function stGetPages(type = 'page') {
 		Vvveb.Breadcrumb.init();
 		Vvveb.CssEditor.init();
 
-		// build the folders in the file manager
-		if(response && response.folders) {
-			Object.keys(response.folders).forEach(function(folder) {
-				var curr_folder = response.folders[folder];
-				stAddFolder(curr_folder);
+		// pages are listed flat - folders are only part of the page URL (see stFolderSuggest) - except for
+		// articles, where the root article folders are shown as categories with each article under its root
+		var rootOf = {};
+		if(type === 'article' && response && response.folders) {
+			var mapRoot = function(folder, rootId) {
+				rootOf[folder.id] = rootId;
+				if(folder.children) {
+					Object.keys(folder.children).forEach(function(key) {
+						mapRoot(folder.children[key], rootId);
+					});
+				}
+			};
+			Object.keys(response.folders).forEach(function(key) {
+				var root = response.folders[key];
+				if(!root || root.type !== 'article') {
+					return;
+				}
+				Vvveb.FileManager.addFolder(root.name, root.id, '');
+				mapRoot(root, root.id);
 			});
 		}
-
 		// build the pages object from the response
 		if(response && response.pages) {
 			response.pages.forEach(function (page) {
@@ -827,10 +986,11 @@ function stGetPages(type = 'page') {
 						file: page.url,
 						title: page.title,
 						url: page.url,
-						folder: page.folder || null,
+						folder: (type === 'article' && page.folder && rootOf[page.folder]) ? rootOf[page.folder] : null,
 						description: page.description || '',
 						type: page.type || 'page',
-						full_url: page.full_url || ''
+						full_url: page.full_url || '',
+						publish_state: page.publish_state || ''
 					};
 				}
 			});
@@ -849,20 +1009,6 @@ function stGetPages(type = 'page') {
 		// Vvveb.Gui.toggleRightColumn(false);
 		Vvveb.Breadcrumb.init();
 	});
-}
-
-function stAddFolder(folder, parent = "") {
-
-	// add the parent folder
-	Vvveb.FileManager.addFolder(folder.name, folder.id, parent);
-
-	// check for any children
-	if(folder.children) {
-		Object.keys(folder.children).forEach(function(childKey) {
-			var child_folder = folder.children[childKey];
-			stAddFolder(child_folder, folder.id);
-		});
-	}
 }
 
 window.stElementHighlightConfig = window.stElementHighlightConfig || {
@@ -1494,7 +1640,40 @@ const stPageDetailsModal = {
 	_originalMetaDescription: '',
 	_originalMenuAutoid: '',
 	_originalFooterAutoid: '',
+	_originalImageAutoid: '',
+	_type: 'page',
+
+	// unlocks the URL field so a changed URL is saved
+	unlockLink: function() {
+		const linkInput = document.getElementById('st-page-details-link');
+		const lockBtn = document.getElementById('st-page-details-link-unlock');
+		this._linkUnlocked = true;
+		if (linkInput) {
+			linkInput.readOnly = false;
+		}
+		if (lockBtn) {
+			lockBtn.innerHTML = '<i class="la la-unlock"></i>';
+		}
+	},
 	_linkUnlocked: false,
+
+	// sets the featured image thumbnail and document autoid (empty values clear the image)
+	setImage: function(src, autoid) {
+		const imageThumb = document.getElementById('st-page-details-image-thumb');
+		const imageAutoidInput = document.getElementById('st-page-details-image-autoid');
+		const imageRemoveBtn = document.getElementById('st-page-details-image-remove');
+		const hasImage = !!(src && autoid);
+		if (imageThumb) {
+			imageThumb.src = hasImage ? src : '';
+			imageThumb.classList.toggle('d-none', !hasImage);
+		}
+		if (imageAutoidInput) {
+			imageAutoidInput.value = hasImage ? autoid : '';
+		}
+		if (imageRemoveBtn) {
+			imageRemoveBtn.classList.toggle('d-none', !hasImage);
+		}
+	},
 
 	getModal: function() {
 		if (!this._modal) {
@@ -1558,6 +1737,16 @@ const stPageDetailsModal = {
 			footerSelect.innerHTML = '<option value="">Loading…</option>';
 			footerSelect.disabled = true;
 		}
+		this.setImage('', '');
+		this._originalImageAutoid = '';
+		this._type = 'page';
+
+		// always start on the Page tab
+		const pageTab = document.querySelector('#st-page-details-modal [data-bs-target="#st-page-details-tab-page"]');
+		if (pageTab && typeof bootstrap !== 'undefined' && bootstrap.Tab) {
+			bootstrap.Tab.getOrCreateInstance(pageTab).show();
+		}
+		stDetailsArticleFolder?.hide();
 
 		modal.show();
 
@@ -1592,6 +1781,20 @@ const stPageDetailsModal = {
 				metaDescriptionInput.placeholder = 'Meta description';
 				stPageDetailsModal._originalMetaDescription = response.meta_description || '';
 			}
+
+			stPageDetailsModal._type = response.type || 'page';
+
+			// articles must be in a folder - show the Folder field for them
+			if (stDetailsArticleFolder) {
+				stDetailsArticleFolder.build();
+				if (stPageDetailsModal._type === 'article') {
+					stDetailsArticleFolder.show();
+				} else {
+					stDetailsArticleFolder.hide();
+				}
+			}
+			stPageDetailsModal.setImage(response.image || '', response.image_autoid || '');
+			stPageDetailsModal._originalImageAutoid = (response.image && response.image_autoid) ? response.image_autoid : '';
 
 			if (menuSelect) {
 				menuSelect.disabled = false;
@@ -1643,6 +1846,8 @@ const stPageDetailsModal = {
 		const metaDescription = metaDescriptionInput ? metaDescriptionInput.value.trim() : '';
 		const menuAutoid      = menuSelect ? menuSelect.value : '';
 		const footerAutoid    = footerSelect ? footerSelect.value : '';
+		const imageAutoidInput = document.getElementById('st-page-details-image-autoid');
+		const imageAutoid     = imageAutoidInput ? imageAutoidInput.value : '';
 
 		if (!title) {
 			displayToast('bg-warning', 'Warning', 'Page title cannot be empty.');
@@ -1654,10 +1859,11 @@ const stPageDetailsModal = {
 		const metaChanged   = metaTitle !== this._originalMetaTitle || metaDescription !== this._originalMetaDescription;
 		const menuChanged   = menuAutoid !== this._originalMenuAutoid;
 		const footerChanged = footerAutoid !== this._originalFooterAutoid;
+		const imageChanged  = imageAutoid !== this._originalImageAutoid;
 
 		const tasks = [];
 
-		if (titleChanged || linkChanged || metaChanged) {
+		if (titleChanged || linkChanged || metaChanged || imageChanged) {
 			const renameData = {
 				page_autoid: stCurrentPageAutoid,
 				title: title,
@@ -1666,6 +1872,10 @@ const stPageDetailsModal = {
 			};
 			if (linkChanged) {
 				renameData.link = link;
+			}
+			if (imageChanged) {
+				// an empty autoid clears the featured image
+				renameData.image_autoid = imageAutoid;
 			}
 			tasks.push(
 				stAjaxCall('renamePage', renameData, 'POST').then(function(response) {
@@ -1713,6 +1923,30 @@ const stPageDetailsModal = {
 		if (saveBtn) {
 			saveBtn.addEventListener('click', function() {
 				stPageDetailsModal.save();
+			});
+		}
+
+		// featured image - pick a document from the file manager
+		const imageChooseBtn = document.getElementById('st-page-details-image-choose');
+		if (imageChooseBtn) {
+			imageChooseBtn.addEventListener('click', function() {
+				if (!Vvveb.MediaModal) {
+					Vvveb.MediaModal = new FileManager(true);
+				}
+				Vvveb.MediaModal.open(null, function(src, autoid) {
+					if (!autoid) {
+						displayToast('bg-warning', 'Warning', 'Please choose an image from the file manager.');
+						return;
+					}
+					stPageDetailsModal.setImage(src, autoid);
+				});
+			});
+		}
+
+		const imageRemoveBtn = document.getElementById('st-page-details-image-remove');
+		if (imageRemoveBtn) {
+			imageRemoveBtn.addEventListener('click', function() {
+				stPageDetailsModal.setImage('', '');
 			});
 		}
 
@@ -1855,6 +2089,272 @@ window.addEventListener('vvveb.FileManager.loadPage', function(e) {
 });
 
 stPageDetailsModal.init();
+
+// Publish / Unpublish — Draft pages are not on the website; Published pages are live from their publish date
+const stPublishControl = {
+	_pageAutoid: null,
+	_status: 'draft',
+	_publishDate: '',
+	_title: '',
+
+	// formats a Date as a datetime-local value (local time, Y-m-dTH:i)
+	toInputValue: function(date) {
+		const pad = function(n) { return String(n).padStart(2, '0'); };
+		return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate())
+			+ 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes());
+	},
+
+	// formats a datetime-local value for display
+	toDisplay: function(value) {
+		const date = new Date(value);
+		return isNaN(date.getTime()) ? value : date.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+	},
+
+	// updates the button for the current state
+	render: function() {
+		const btn = document.getElementById('st-publish-btn');
+		if (!btn) {
+			return;
+		}
+		const label = btn.querySelector('.st-publish-label');
+		const isPublished = this._status === 'published';
+		if (label) {
+			label.textContent = isPublished ? 'Unpublish' : 'Publish';
+		}
+		btn.classList.toggle('btn-success', !isPublished);
+		btn.classList.toggle('btn-outline-secondary', isPublished);
+
+		// show when a published page is scheduled for the future
+		let title = isPublished ? 'Unpublish page (set back to draft)' : 'Publish page';
+		if (isPublished && this._publishDate && new Date(this._publishDate) > new Date()) {
+			title = 'Scheduled for ' + this.toDisplay(this._publishDate) + ' — click to unpublish';
+		}
+		btn.title = title;
+	},
+
+	// loads the publishing state for a page (hidden for menus, footers, and templates)
+	refresh: function(pageAutoid) {
+		const btn = document.getElementById('st-publish-btn');
+		if (!btn) {
+			return;
+		}
+		this._pageAutoid = null;
+		btn.classList.add('d-none');
+		stSetPreviewVisible(true);
+		if (!pageAutoid || pageAutoid.indexOf('menu_') === 0 || pageAutoid.indexOf('footer_') === 0) {
+			return;
+		}
+
+		stAjaxCall('getPageDetails', { page_autoid: pageAutoid }, 'GET').then(function(response) {
+			if (!response || stCurrentPageAutoid !== pageAutoid) {
+				return;
+			}
+
+			// draft and scheduled pages aren't on the website, so there's nothing to view
+			stSetPreviewVisible(response.type === 'template' || response.state === 'published');
+			if (response.type === 'template') {
+				return;
+			}
+			stPublishControl._pageAutoid = pageAutoid;
+			stPublishControl._status = response.status || 'draft';
+			stPublishControl._publishDate = response.publish_date || '';
+			stPublishControl._title = response.title || '';
+			stPublishControl.render();
+			btn.classList.remove('d-none');
+		}).catch(function() {});
+	},
+
+	// opens the date picker, defaulting to the previous publish date (or now)
+	openPublish: function() {
+		const input = document.getElementById('st-publish-date');
+		if (input) {
+			input.value = this._publishDate || this.toInputValue(new Date());
+		}
+		bootstrap.Modal.getOrCreateInstance(document.getElementById('st-publish-modal')).show();
+	},
+
+	publish: function() {
+		const pageAutoid = this._pageAutoid;
+		const input = document.getElementById('st-publish-date');
+		const publishDate = input ? input.value : '';
+		if (!pageAutoid) {
+			return;
+		}
+		if (!publishDate) {
+			displayToast('bg-warning', 'Warning', 'Please choose a publish date and time.');
+			return;
+		}
+
+		stAjaxCall('publishPage', { page_autoid: pageAutoid, publish_date: publishDate }, 'POST', true).then(function(response) {
+			if (!response || !response.success) {
+				displayToast('bg-danger', 'Error', 'Could not publish the page.');
+				return;
+			}
+			bootstrap.Modal.getOrCreateInstance(document.getElementById('st-publish-modal')).hide();
+			stPublishControl._status = 'published';
+			stPublishControl._publishDate = response.publish_date || publishDate;
+			stPublishControl.render();
+			stSetPagePublishState(pageAutoid, response.live ? 'published' : 'scheduled');
+			stSetPreviewVisible(!!response.live);
+			if (response.live) {
+				displayToast('bg-success', 'Success', 'Page published.');
+			} else {
+				displayToast('bg-success', 'Success', 'Page scheduled for ' + stPublishControl.toDisplay(stPublishControl._publishDate) + '.');
+			}
+		}).catch(function() {});
+	},
+
+	unpublish: function() {
+		const pageAutoid = this._pageAutoid;
+		if (!pageAutoid) {
+			return;
+		}
+		stUnpublishConfirm(this._title).then(function(confirmed) {
+			if (!confirmed) {
+				return;
+			}
+			stAjaxCall('unpublishPage', { page_autoid: pageAutoid }, 'POST', true).then(function(response) {
+				if (!response || !response.success) {
+					displayToast('bg-danger', 'Error', 'Could not unpublish the page.');
+					return;
+				}
+				stPublishControl._status = 'draft';
+				stPublishControl.render();
+				stSetPagePublishState(pageAutoid, 'draft');
+				stSetPreviewVisible(false);
+				displayToast('bg-success', 'Success', 'Page unpublished. It is now a draft.');
+			}).catch(function() {});
+		});
+	},
+
+	init: function() {
+		const btn = document.getElementById('st-publish-btn');
+		if (btn) {
+			btn.addEventListener('click', function() {
+				if (stPublishControl._status === 'published') {
+					stPublishControl.unpublish();
+				} else {
+					stPublishControl.openPublish();
+				}
+			});
+		}
+
+		const confirmBtn = document.getElementById('st-publish-confirm');
+		if (confirmBtn) {
+			confirmBtn.addEventListener('click', function() {
+				stPublishControl.publish();
+			});
+		}
+
+		window.addEventListener('vvveb.FileManager.loadPage', function(e) {
+			stPublishControl.refresh((e.detail && e.detail.id) ? e.detail.id : null);
+		});
+	}
+};
+
+stPublishControl.init();
+
+/**
+ * stSetPagePublishState: Updates a page's status dot in the page list (green published, amber scheduled, grey draft).
+ *
+ * @param {string} autoid - The page autoid.
+ * @param {string} state - "published", "scheduled" or "draft".
+ */
+function stSetPagePublishState(autoid, state) {
+	if (!autoid || !state) {
+		return;
+	}
+	document.querySelectorAll('#filemanager li[data-id="' + autoid + '"] .st-publish-dot').forEach(function(dot) {
+		dot.classList.remove('st-publish-dot-published', 'st-publish-dot-scheduled', 'st-publish-dot-draft');
+		dot.classList.add('st-publish-dot-' + state);
+		dot.title = state.charAt(0).toUpperCase() + state.slice(1);
+	});
+
+	// only live pages can be viewed on the website
+	document.querySelectorAll('#filemanager li[data-id="' + autoid + '"] a.view').forEach(function(link) {
+		link.classList.toggle('d-none', state !== 'published');
+	});
+}
+
+/**
+ * stSetPreviewVisible: Shows or hides the toolbar "View page" button (hidden for draft and scheduled pages).
+ *
+ * @param {boolean} visible
+ */
+function stSetPreviewVisible(visible) {
+	document.querySelectorAll('.btn-preview-url').forEach(function(link) {
+		link.classList.toggle('d-none', !visible);
+	});
+}
+
+/**
+ * stUnpublishConfirm: Shows a Bootstrap 5 confirmation modal before unpublishing a page.
+ * Returns a Promise that resolves to true (proceed) or false (cancel).
+ *
+ * @param {string} pageTitle - The title of the page being unpublished.
+ * @returns {Promise<boolean>}
+ */
+function stUnpublishConfirm(pageTitle) {
+	return new Promise(function(resolve) {
+		var modalId = 'st-unpublish-confirm-modal';
+		var existing = document.getElementById(modalId);
+		if (existing) {
+			existing.remove();
+		}
+
+		var modal = document.createElement('div');
+		modal.id = modalId;
+		modal.className = 'modal fade';
+		modal.setAttribute('tabindex', '-1');
+		modal.setAttribute('aria-modal', 'true');
+		modal.setAttribute('role', 'dialog');
+		modal.innerHTML = [
+			'<div class="modal-dialog modal-dialog-centered">',
+				'<div class="modal-content">',
+					'<div class="modal-header">',
+						'<h5 class="modal-title"><i class="la la-eye-slash me-1"></i> Unpublish Page</h5>',
+						'<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>',
+					'</div>',
+					'<div class="modal-body">',
+						'<p>Are you sure you want to unpublish <strong class="st-unpublish-page-name"></strong>?</p>',
+						'<p class="text-muted mb-0">The page will be set back to draft and will no longer be available on the website.</p>',
+					'</div>',
+					'<div class="modal-footer">',
+						'<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>',
+						'<button type="button" class="btn btn-danger" id="st-unpublish-confirm-ok"><i class="la la-eye-slash me-1"></i> Unpublish</button>',
+					'</div>',
+				'</div>',
+			'</div>'
+		].join('');
+
+		// set page name safely (no XSS)
+		modal.querySelector('.st-unpublish-page-name').textContent = pageTitle || 'this page';
+
+		document.body.appendChild(modal);
+
+		var bsModal = new bootstrap.Modal(modal, { backdrop: 'static', keyboard: false });
+		var resolved = false;
+
+		modal.querySelector('#st-unpublish-confirm-ok').addEventListener('click', function() {
+			resolved = true; // must be set before hide() — Bootstrap fires hide.bs.modal synchronously
+			bsModal.hide();
+			resolve(true);
+		});
+
+		// any modal close that wasn't the OK button means the user cancelled
+		modal.addEventListener('hide.bs.modal', function() {
+			if (!resolved) {
+				resolve(false);
+			}
+		});
+
+		modal.addEventListener('hidden.bs.modal', function() {
+			modal.remove();
+		});
+
+		bsModal.show();
+	});
+}
 
 /**
  * stNavSaveConfirm: Shows a Bootstrap 5 confirmation modal before saving nav changes.

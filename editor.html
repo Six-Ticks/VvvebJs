@@ -114,6 +114,13 @@
 					</span>
 				</button>
 
+				<!-- Publish / Unpublish page button -->
+				<button class="btn btn-success btn-sm btn-icon d-none" title="Publish page" id="st-publish-btn" type="button">
+					<span class="button-text">
+						<i class="la la-globe"></i> <span class="st-publish-label">Publish</span>
+					</span>
+				</button>
+
 				<!-- Save page button -->
 				<button class="btn btn-primary btn-sm btn-icon save-btn" title="Save (Ctrl + S)" id="save-btn"
 					data-vvveb-action="saveAjax" data-vvveb-url="save.php" data-v-vvveb-shortcut="ctrl+e">
@@ -190,9 +197,9 @@
 										</a>
 									</li>
 									<li class="nav-item">
-										<a class="nav-link" id="blogs-tab" data-bs-toggle="tab" href="#pages" data-type="blog" role="tab" aria-controls="blogs" aria-selected="false" title="Blogs">
+										<a class="nav-link" id="articles-tab" data-bs-toggle="tab" href="#pages" data-type="article" role="tab" aria-controls="articles" aria-selected="false" title="Articles">
 											<i class="la la-newspaper la-lg"></i>
-											<div><small>Blogs</small></div>
+											<div><small>Articles</small></div>
 										</a>
 									</li>
 									<li class="nav-item">
@@ -222,10 +229,6 @@
 						</div>
 
 						<div class="btn-group responsive-btns float-end" role="group">
-							<button class="btn btn-outline-primary btn-sm btn-add" title="New Folder"
-								id="st-new-folder-btn" data-bs-toggle="modal" data-bs-target="#st-new-folder-modal">
-								<i class="icon-folder"></i>
-							</button>
 							<button class="btn btn-outline-primary btn-sm btn-add" title="New page (Ctrl + Shift + P)"
 								id="new-file-btn" data-vvveb-action="newPage" data-vvveb-shortcut="">
 								<i class="icon-add"></i>
@@ -247,7 +250,7 @@
 						</ol>
 					</div>
 
-					<!-- <div class="tree file-tree" id="st-blog-tree">
+					<!-- <div class="tree file-tree" id="st-article-tree">
 						<ol>
 						</ol>
 					</div>
@@ -1598,10 +1601,11 @@
 	<script id="vvveb-filemanager-page" type="text/html">
 	<li data-url="{%=url%}" data-file="{%=file%}" data-page="{%=name%}" class="file{% if (typeof className !== 'undefined') { %} {%=className%}{% } %}">
 		<label for="{%=name%}" {% if (typeof description !== 'undefined') { %} title="{%=description%}" {% } %}>
+			{% if (typeof publish_state !== 'undefined' && publish_state) { %}<span class="st-publish-dot st-publish-dot-{%=publish_state%}" title="{%=publish_state.charAt(0).toUpperCase() + publish_state.slice(1)%}"></span>{% } %}
 			<span>{%=title%}</span>
 			<div class="file-actions">
 				<button href="#" class="delete btn btn-outline-danger" title="Delete"><i class="la la-trash"></i></button>
-				<a href="{% if (typeof full_url !== 'undefined' && full_url) { %}{%=full_url%}{% } else { %}{%=url%}{% } %}" target="_blank" class="view btn btn-outline-primary" title="View page"><i class="la la la-external-link-alt"></i></a>
+				<a href="{% if (typeof full_url !== 'undefined' && full_url) { %}{%=full_url%}{% } else { %}{%=url%}{% } %}" target="_blank" class="view btn btn-outline-primary{% if (typeof publish_state !== 'undefined' && (publish_state === 'draft' || publish_state === 'scheduled')) { %} d-none{% } %}" title="View page"><i class="la la la-external-link-alt"></i></a>
 				<button href="#" class="page-details btn btn-outline-primary" title="Page details"><i class="la la-cog"></i></button>
 			</div>
 		</label> <input type="checkbox" id="{%=name%}" />
@@ -1857,7 +1861,7 @@
 								<div>
 									<select class="form-select" name="type">
 										<option value="page">Page</option>
-										<option value="blog">Blog</option>
+										<option value="article">Article</option>
 										<option value="template">Template</option>
 										<option value="menu">Menu</option>
 										<option value="footer">Footer</option>
@@ -1876,13 +1880,12 @@
 							</div>
 						</div>
 
-						<div class="mb-3 row" data-key="folder">
-							<label class="col-sm-3 col-form-label">Folder</label>
+						<div class="mb-3 row d-none" data-key="article-folder">
+							<label class="col-sm-3 col-form-label">Folder <span class="text-danger">*</span></label>
 							<div class="col-sm-9 input">
 								<div>
-									<select name="folder" class="form-select st-parent-folder-select" hidden></select>
-									<div class="st-parent-folder-container"></div>
-									<a href="#" class="btn btn-sm btn-outline-primary mt-2 st-create-folder-btn" data-bs-toggle="modal" data-bs-target="#st-new-folder-modal"><i class="la la-plus"></i> Create new folder</a>
+									<input type="hidden" name="article_folder" value="">
+									<div class="st-article-folder-container"></div>
 								</div>
 							</div>
 						</div>
@@ -1909,7 +1912,8 @@
 							<div class="col-sm-9 input">
 								<div>
 									<input name="url" type="text" value="" class="form-control"
-										placeholder="my-page">
+										placeholder="folder/my-page" autocomplete="off">
+									<div class="list-group st-folder-suggestions d-none"></div>
 								</div>
 							</div>
 							<div class="col-sm-3"></div>
@@ -1954,16 +1958,6 @@
 							</div>
 						</div>
 
-						<div class="mb-3 row" data-key="folder">
-							<label class="col-sm-3 col-form-label">Folder</label>
-							<div class="col-sm-9 input">
-								<div>
-									<select name="folder" class="form-select st-parent-folder-select" hidden></select>
-									<div class="st-parent-folder-container"></div>
-									<a href="#" class="btn btn-sm btn-outline-primary mt-2 st-create-folder-btn" data-bs-toggle="modal" data-bs-target="#st-new-folder-modal"><i class="la la-plus"></i> Create new folder</a>
-								</div>
-							</div>
-						</div>
 					</div>
 
 					<div class="modal-footer">
@@ -1979,113 +1973,123 @@
 		</div>
 	</div>
 
-	<!-- new folder modal-->
-	<div class="modal fade" id="st-new-folder-modal" tabindex="-1" role="dialog">
-		<div class="modal-dialog" role="document">
-
-			<form id="st-new-folder">
-
-				<div class="modal-content">
-					<div class="modal-header">
-						<span class="modal-title text-primary fw-normal"><i class="la la-lg la-folder"></i> New
-							Folder</span>
-						<button type="button" class="btn-close p-0 me-1" data-bs-dismiss="modal" aria-label="Close"></button>
-					</div>
-
-					<div class="modal-body text">
-
-						<div class="mb-3 row" data-key="href">
-							<label class="col-sm-3 col-form-label">Folder Name</label>
-							<div class="col-sm-9 input">
-								<div>
-									<input name="title" type="text" value="" class="form-control"
-										placeholder="My Folder" required>
-								</div>
-							</div>
-						</div>
-
-						<div class="mb-3 row" data-key="href">
-							<label class="col-sm-3 col-form-label">Parent Folder</label>
-							<div class="col-sm-9 input">
-								<div>
-									<select name="parent" hidden class="form-select st-parent-folder-select"></select>
-									<div class="st-parent-folder-container"></div>
-								</div>
-							</div>
-						</div>
-
-						<div class="mb-3 row" data-key="href">
-							<label class="col-sm-3 col-form-label">Folder Template</label>
-							<div class="col-sm-9 input">
-								<div>
-									<div class="st-template-container"></div>
-									<input hidden name="template" type="text" class="st-template-select" value="">
-								</div>
-							</div>
-						</div>
-					</div>
-
-					<div class="modal-footer">
-						<button class="btn btn-secondary btn-icon" type="reset" data-bs-dismiss="modal"><i
-								class="la la-times"></i> Cancel</button>
-						<button class="btn btn-primary btn-icon" type="submit"><i class="la la-check"></i> Create
-							Folder</button>
-					</div>
+	<!-- Publish Page Modal -->
+	<div class="modal fade" id="st-publish-modal" tabindex="-1" role="dialog" aria-labelledby="st-publish-modal-label">
+		<div class="modal-dialog modal-dialog-centered" role="document">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" id="st-publish-modal-label"><i class="la la-globe me-1"></i> Publish Page</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 				</div>
-
-			</form>
-
+				<div class="modal-body">
+					<label for="st-publish-date" class="form-label">Publish date and time</label>
+					<input type="datetime-local" class="form-control" id="st-publish-date">
+					<div class="form-text">The page goes live on the website from this date and time. Choose a future date to schedule it.</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+					<button type="button" class="btn btn-success" id="st-publish-confirm"><i class="la la-globe me-1"></i> Publish</button>
+				</div>
+			</div>
 		</div>
 	</div>
 
 	<!-- Page Details Modal -->
 	<div class="modal fade" id="st-page-details-modal" tabindex="-1" role="dialog" aria-labelledby="st-page-details-title-label">
-		<div class="modal-dialog modal-md" role="document">
+		<div class="modal-dialog modal-lg" role="document">
 			<div class="modal-content">
 				<div class="modal-header">
 					<h5 class="modal-title" id="st-page-details-title-label">Page Details</h5>
 					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 				</div>
 				<div class="modal-body">
-					<div class="mb-3">
-						<label for="st-page-details-name" class="form-label">Page Title</label>
-						<input type="text" class="form-control" id="st-page-details-name" placeholder="Page title">
-					</div>
-					<div class="mb-3">
-						<label for="st-page-details-link" class="form-label">URL Slug</label>
-						<div class="input-group">
-							<input type="text" class="form-control" id="st-page-details-link" placeholder="/page-slug" readonly>
-							<button class="btn btn-outline-secondary" type="button" id="st-page-details-link-unlock" title="Unlock to edit URL slug">
-								<i class="la la-lock"></i>
-							</button>
+					<ul class="nav nav-tabs mb-3" id="st-page-details-tabs" role="tablist">
+						<li class="nav-item" role="presentation">
+							<button class="nav-link active" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#st-page-details-tab-page" aria-controls="st-page-details-tab-page" aria-selected="true"><i class="la la-file-alt me-1"></i> Page</button>
+						</li>
+						<li class="nav-item" role="presentation">
+							<button class="nav-link" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#st-page-details-tab-seo" aria-controls="st-page-details-tab-seo" aria-selected="false"><i class="la la-search me-1"></i> SEO</button>
+						</li>
+						<li class="nav-item" role="presentation">
+							<button class="nav-link" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#st-page-details-tab-layout" aria-controls="st-page-details-tab-layout" aria-selected="false"><i class="la la-columns me-1"></i> Layout</button>
+						</li>
+					</ul>
+					<div class="tab-content">
+
+						<!-- Page: title, folder (articles) and URL -->
+						<div class="tab-pane fade show active" id="st-page-details-tab-page" role="tabpanel">
+							<div class="mb-3">
+								<label for="st-page-details-name" class="form-label">Page Title</label>
+								<input type="text" class="form-control" id="st-page-details-name" placeholder="Page title">
+							</div>
+							<div class="mb-3 d-none" data-key="details-article-folder">
+								<label class="form-label">Folder <span class="text-danger">*</span></label>
+								<input type="hidden" id="st-page-details-article-folder" value="">
+								<div class="st-details-article-folder-container"></div>
+								<div class="form-text">Changing the folder changes the article's URL.</div>
+							</div>
+							<div class="row">
+								<div class="col-12 mb-3">
+									<label for="st-page-details-link" class="form-label">URL</label>
+									<div class="input-group">
+										<input type="text" class="form-control" id="st-page-details-link" placeholder="folder/page-slug" autocomplete="off" readonly>
+										<button class="btn btn-outline-secondary" type="button" id="st-page-details-link-unlock" title="Unlock to edit the URL">
+											<i class="la la-lock"></i>
+										</button>
+									</div>
+									<div class="list-group st-folder-suggestions d-none" id="st-page-details-folder-suggestions"></div>
+									<div class="form-text">Type a folder path before the page slug (E.g. news/my-page) to move the page into that folder. Changing the URL will break any existing links to this page.</div>
+								</div>
+							</div>
 						</div>
-						<div class="form-text">Changing the URL will break any existing links to this page.</div>
-					</div>
-					<div class="mb-3">
-						<label for="st-page-details-meta-title" class="form-label">Meta Title</label>
-						<input type="text" class="form-control" id="st-page-details-meta-title" placeholder="Meta title">
-					</div>
-					<div class="mb-3">
-						<label for="st-page-details-meta-description" class="form-label">Meta Description</label>
-						<textarea class="form-control" id="st-page-details-meta-description" rows="3" placeholder="Meta description"></textarea>
-					</div>
-					<div class="mb-3">
-						<label for="st-page-details-menu-select" class="form-label">Navigation Menu</label>
-						<select class="form-select" id="st-page-details-menu-select">
-							<option value="">Loading…</option>
-						</select>
-					</div>
-					<div class="mb-3">
-						<button type="button" class="btn btn-sm btn-outline-secondary" id="st-page-details-set-default">Set selected menu as site default</button>
-					</div>
-					<div class="mb-3">
-						<label for="st-page-details-footer-select" class="form-label">Footer</label>
-						<select class="form-select" id="st-page-details-footer-select">
-							<option value="">Loading…</option>
-						</select>
-					</div>
-					<div>
-						<button type="button" class="btn btn-sm btn-outline-secondary" id="st-page-details-set-default-footer">Set selected footer as site default</button>
+
+						<!-- SEO: meta title, description and image -->
+						<div class="tab-pane fade" id="st-page-details-tab-seo" role="tabpanel">
+							<div class="row">
+								<div class="col-md-8">
+									<div class="mb-3">
+										<label for="st-page-details-meta-title" class="form-label">Meta Title</label>
+										<input type="text" class="form-control" id="st-page-details-meta-title" placeholder="Meta title">
+									</div>
+									<div class="mb-3">
+										<label for="st-page-details-meta-description" class="form-label">Meta Description</label>
+										<textarea class="form-control" id="st-page-details-meta-description" rows="4" placeholder="Meta description"></textarea>
+									</div>
+								</div>
+								<div class="col-md-4 mb-3">
+									<label class="form-label">Image</label>
+									<div class="st-page-details-image">
+										<img id="st-page-details-image-thumb" class="img-thumbnail d-none mb-2" src="" alt="image">
+										<input type="hidden" id="st-page-details-image-autoid" value="">
+										<div class="d-flex gap-2">
+											<button type="button" class="btn btn-sm btn-outline-secondary" id="st-page-details-image-choose">Choose image</button>
+											<button type="button" class="btn btn-sm btn-outline-danger d-none" id="st-page-details-image-remove">Remove</button>
+										</div>
+									</div>
+								</div>
+							</div>
+							<div class="form-text">Shown in search results and when the page is shared.</div>
+						</div>
+
+						<!-- Layout: navigation menu and footer -->
+						<div class="tab-pane fade" id="st-page-details-tab-layout" role="tabpanel">
+							<div class="row">
+								<div class="col-md-6 mb-3">
+									<label for="st-page-details-menu-select" class="form-label">Navigation Menu</label>
+									<select class="form-select mb-2" id="st-page-details-menu-select">
+										<option value="">Loading…</option>
+									</select>
+									<button type="button" class="btn btn-sm btn-outline-secondary" id="st-page-details-set-default">Set selected menu as site default</button>
+								</div>
+								<div class="col-md-6 mb-3">
+									<label for="st-page-details-footer-select" class="form-label">Footer</label>
+									<select class="form-select mb-2" id="st-page-details-footer-select">
+										<option value="">Loading…</option>
+									</select>
+									<button type="button" class="btn btn-sm btn-outline-secondary" id="st-page-details-set-default-footer">Set selected footer as site default</button>
+								</div>
+							</div>
+						</div>
 					</div>
 				</div>
 				<div class="modal-footer">

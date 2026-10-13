@@ -13703,6 +13703,10 @@ progress {
 	font-size: 0.875rem;
 }
 
+.label-notice {
+	margin-top: 5px;
+}
+
 .form-text {
 	margin-top: 0.25rem;
 	font-size: 0.875em;
@@ -27960,11 +27964,24 @@ audio {
 }
 
 .save-template-btn {
+	box-shadow: rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(255, 255, 255, 0.2) 0px 0.75px 0px 0px inset, rgba(var(--bs-secondary-rgb), 0.4) 0px 1px 2px 0px, rgba(var(--bs-secondary-rgb), 0.8) 0px 0px 0px 1px !important;
+}
+
+.save-template-btn,
+#st-publish-btn {
 	padding: 0.1rem 0.5rem;
 	margin-top: 0.25rem;
 	margin-bottom: 0.1rem;
 	margin-right: 4px;
-	box-shadow: rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(255, 255, 255, 0.2) 0px 0.75px 0px 0px inset, rgba(var(--bs-secondary-rgb), 0.4) 0px 1px 2px 0px, rgba(var(--bs-secondary-rgb), 0.8) 0px 0px 0px 1px !important;
+}
+
+#st-publish-btn.btn-success {
+	box-shadow: rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(255, 255, 255, 0.2) 0px 0.75px 0px 0px inset, rgba(var(--bs-success-rgb), 0.4) 0px 1px 2px 0px, rgba(var(--bs-success-rgb), 0.8) 0px 0px 0px 1px;
+}
+
+#st-publish-btn i {
+	font-size: 1rem;
+	line-height: 21px;
 }
 
 /* Container holds the arrows and the wrapper horizontally */
@@ -28016,4 +28033,38 @@ audio {
 .slider-btn:disabled {
     color: #ccc;
     cursor: not-allowed;
+}
+
+/* Page Details modal - tabbed layout */
+#st-page-details-modal .tab-content {
+	min-height: 320px;
+}
+
+#st-page-details-modal .st-page-details-image img {
+	display: block;
+	max-width: 100%;
+	max-height: 120px;
+}
+
+/* Page list - publish state dot (green published, amber scheduled, grey draft) */
+.st-publish-dot {
+	display: inline-block;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	margin-right: 6px;
+	vertical-align: middle;
+	flex-shrink: 0;
+}
+
+.st-publish-dot-published {
+	background-color: #198754;
+}
+
+.st-publish-dot-scheduled {
+	background-color: #f59f00;
+}
+
+.st-publish-dot-draft {
+	background-color: #adb5bd;
 }

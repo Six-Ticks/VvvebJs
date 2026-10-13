@@ -283,7 +283,9 @@ class FileManager {
 		}
 
 		if (this.callback) {
-			this.callback(src);
+
+			// also pass the document autoid, for callers that store the document rather than the URL
+			this.callback(src, selectedFile.data('id') || '');
 		}
 
 		if (this.targetInput) {

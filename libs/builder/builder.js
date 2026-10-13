@@ -3101,8 +3101,8 @@ Vvveb.Gui = {
 				// reload the pages
 				stGetPages(selectedType);
 
-				// rebuild the page folders
-				stBuildPageFolders();
+				// reload the folder paths (the page may have created new folders)
+				stLoadFolderPaths();
 			});
 		};
 
