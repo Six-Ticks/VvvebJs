@@ -931,6 +931,11 @@ stAjaxCall('getFilePath', [], 'GET').then(async (response) => {
 	}
 });
 
+// the editor init() methods add event listeners without removing previous ones, so they must only run once -
+// stGetPages() is called again on every file manager tab change / new page, which otherwise stacks duplicate
+// listeners (e.g. one dropped component inserted several times)
+let stEditorInitialised = false;
+
 function stGetPages(type = 'page') {
 	let pages = {};
 
@@ -939,12 +944,16 @@ function stGetPages(type = 'page') {
 
 	stAjaxCall('getPages', {type: type}, 'GET').then(async (response) => {
 
-		Vvveb.Gui.init();
+		// FileManager.init() clears its previous listeners and rebuilds the page tree, so runs every time
 		Vvveb.FileManager.init();
-		Vvveb.SectionList.init();
-		Vvveb.TreeList.init();
-		Vvveb.Breadcrumb.init();
-		Vvveb.CssEditor.init();
+
+		if(!stEditorInitialised) {
+			Vvveb.Gui.init();
+			Vvveb.SectionList.init();
+			Vvveb.TreeList.init();
+			Vvveb.Breadcrumb.init();
+			Vvveb.CssEditor.init();
+		}
 
 		// pages are listed flat - folders are only part of the page URL (see stFolderSuggest) - except for
 		// articles, where the root article folders are shown as categories with each article under its root
@@ -967,6 +976,14 @@ function stGetPages(type = 'page') {
 				mapRoot(root, root.id);
 			});
 		}
+
+		// page list groups (E.g. Events, for the pages linked to an event date) are shown as folders, with each
+		// page in its group - these are only folders in the page list, not in the page URL
+		if(response && response.groups) {
+			response.groups.forEach(function(group) {
+				Vvveb.FileManager.addFolder(group.name, group.id, '');
+			});
+		}
 		// build the pages object from the response
 		if(response && response.pages) {
 			response.pages.forEach(function (page) {
@@ -986,7 +1003,7 @@ function stGetPages(type = 'page') {
 						file: page.url,
 						title: page.title,
 						url: page.url,
-						folder: (type === 'article' && page.folder && rootOf[page.folder]) ? rootOf[page.folder] : null,
+						folder: (type === 'article' && page.folder && rootOf[page.folder]) ? rootOf[page.folder] : (page.group || null),
 						description: page.description || '',
 						type: page.type || 'page',
 						full_url: page.full_url || '',
@@ -996,18 +1013,20 @@ function stGetPages(type = 'page') {
 			});
 		}
 
-		let firstPage = Object.keys(pages)[0];
-		if(firstPage) {
-			Vvveb.Builder.init(pages[firstPage]["url"], function () {});
-		} else {
-			Vvveb.Builder.init("", function () {});
+		if(!stEditorInitialised) {
+			let firstPage = Object.keys(pages)[0];
+			if(firstPage) {
+				Vvveb.Builder.init(pages[firstPage]["url"], function () {});
+			} else {
+				Vvveb.Builder.init("", function () {});
+			}
+			stEditorInitialised = true;
 		}
 
 		Vvveb.FileManager.addPages(pages);
 		Vvveb.Builder.loadSplashscreen();
 		// Vvveb.FileManager.loadPage(pages[firstPage]["name"]);
 		// Vvveb.Gui.toggleRightColumn(false);
-		Vvveb.Breadcrumb.init();
 	});
 }
 

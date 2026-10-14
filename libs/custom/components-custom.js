@@ -190,7 +190,7 @@ function registerComponent(component) {
 			componentInit(component, node);
 		},
 		afterDrop: function (node) {
-			componentAfterDrop(component, node);
+			return componentAfterDrop(component, node);
 		},
 		onChange: function (node, property, value) {
 			componentOnChange(component, node, property, value);
@@ -1577,6 +1577,17 @@ function componentInit(component, node) {
 
 function componentAfterDrop(component, node) {
 	console.debug(component.name + ' component after drop:', node);
+
+	// a component without mandatory properties doesn't need setting up, so create its block straight away
+	// (components with mandatory properties are created once they are set - see componentOnChange)
+	var mandatoryProperties = (component.properties || []).filter(prop => prop.name.endsWith('*'));
+	if (!mandatoryProperties.length
+		&& !$(node).attr('data-id')
+	) {
+		saveComponentBlock(component, node);
+	}
+
+	return node;
 }
 
 function componentOnChange(component, node, property, value) {
@@ -1603,96 +1614,104 @@ function componentOnChange(component, node, property, value) {
 			return;
 		}
 
-		// check the node has a data-id attribute
-		var blockId = "";
-		if ($(node).attr('data-id')) {
-			blockId = $(node).attr('data-id');
-		}
-
-		// get all property values
-		var propertyValues = {};
-		propertyValues['sys_webl_type'] = component.type;
-		propertyValues['sys_webl_id'] = blockId;
-		component.properties.forEach(prop => {
-			var propElement = $(prop.input).find('[name="' + prop.key + '"]');
-			var propValue = "";
-			if(propElement.length) {
-				propValue = propElement.val();
-			}
-			propertyValues[prop.key] = propValue;
-		});
-
 		// create or update the block
-		stAjaxCall("createWebsiteBlock", propertyValues).then((response) => {
+		saveComponentBlock(component, node);
+	}
+}
 
-			// check the response for an id
-			if (response && response.id) {
+// creates (or updates, if the node has a data-id) the website block for a component, then replaces the node with
+// the block's html in the same place
+function saveComponentBlock(component, node) {
 
-				// update the node with the new id
-				$(node).attr('data-id', response.id);
+	// check the node has a data-id attribute
+	var blockId = "";
+	if ($(node).attr('data-id')) {
+		blockId = $(node).attr('data-id');
+	}
 
-				// check for block data
-				if(response.block) {
+	// get all property values
+	var propertyValues = {};
+	propertyValues['sys_webl_type'] = component.type;
+	propertyValues['sys_webl_id'] = blockId;
+	(component.properties || []).forEach(prop => {
+		var propElement = $(prop.input).find('[name="' + prop.key + '"]');
+		var propValue = "";
+		if(propElement.length) {
+			propValue = propElement.val();
+		}
+		propertyValues[prop.key] = propValue;
+	});
 
-					var html = response.block.html || "";
-					var js = response.block.JS || "";
-					var css = response.block.CSS || "";
-					if(html != "") {
+	// create or update the block
+	stAjaxCall("createWebsiteBlock", propertyValues).then((response) => {
 
-						// update the node's HTML
-						$(node).html(html);
+		// check the response for an id
+		if (response && response.id) {
 
-						// move the st-website-block element outside of the node
-						var stWebsiteBlock = $(node).children('.st-website-block').first();
-						if(stWebsiteBlock.length > 0) {
+			// update the node with the new id
+			$(node).attr('data-id', response.id);
 
-							// check if the node has a parent
-							if(node.parentElement) {
+			// check for block data
+			if(response.block) {
 
-								// move the st-website-block element to the parent
-								$(node.parentElement).append(stWebsiteBlock);
+				var html = response.block.html || "";
+				var js = response.block.JS || "";
+				var css = response.block.CSS || "";
+				if(html != "") {
 
-								// add the classes from the node to the st-website-block element
-								for (const className of $(node).attr('class').split(' ')) {
-									if(className
-										&& className !== 'st-website-block'
-										&& className !== 'st-no-edit'
-										&& className !== 'st-vvveb-temp'
-										&& className !== 'st-vvveb-block-'
-									) {
-										stWebsiteBlock.addClass(className);
-									}
+					// update the node's HTML
+					$(node).html(html);
+
+					// move the st-website-block element outside of the node
+					var stWebsiteBlock = $(node).children('.st-website-block').first();
+					if(stWebsiteBlock.length > 0) {
+
+						// check if the node has a parent
+						if(node.parentElement) {
+
+							// move the st-website-block element to where the node is
+							$(node).before(stWebsiteBlock);
+
+							// add the classes from the node to the st-website-block element
+							for (const className of ($(node).attr('class') || '').split(' ')) {
+								if(className
+									&& className !== 'st-website-block'
+									&& className !== 'st-no-edit'
+									&& className !== 'st-vvveb-temp'
+									&& className !== 'st-vvveb-block-'
+								) {
+									stWebsiteBlock.addClass(className);
 								}
-							} else {
-								console.warn('Node has no parent, cannot move st-website-block element');
 							}
-
-							// check for js
-							if(js != "") {
-
-								// create a script element
-								var script = `<script type="text/javascript" class="st-ignore">${js}</script>`;
-								$(node).after(script);
-							}
-
-							// check for css
-							if(css != "") {
-
-								// create a style element
-								var style = `<style type="text/css" class="st-ignore">${css}</style>`;
-								$(node).after(style);
-							}
-
-							// remove the node
-							$(node).remove();
+						} else {
+							console.warn('Node has no parent, cannot move st-website-block element');
 						}
+
+						// check for js
+						if(js != "") {
+
+							// create a script element
+							var script = `<script type="text/javascript" class="st-ignore">${js}</script>`;
+							$(node).after(script);
+						}
+
+						// check for css
+						if(css != "") {
+
+							// create a style element
+							var style = `<style type="text/css" class="st-ignore">${css}</style>`;
+							$(node).after(style);
+						}
+
+						// remove the node
+						$(node).remove();
 					}
 				}
-			} else {
-				console.debug('No id returned for component:', component.name);
 			}
-		}).catch((err) => {
-			console.debug('Promise rejected:', err);
-		});
-	}
+		} else {
+			console.debug('No id returned for component:', component.name);
+		}
+	}).catch((err) => {
+		console.debug('Promise rejected:', err);
+	});
 }
