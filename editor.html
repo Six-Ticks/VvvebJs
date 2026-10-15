@@ -95,6 +95,10 @@
 					<i class="la la-cog la-lg"></i>
 				</button>
 
+				<button class="btn btn-light" title="Site settings" id="st-site-settings-btn">
+					<i class="la la-sliders-h la-lg"></i>
+				</button>
+
 			</div>
 
 
@@ -1994,6 +1998,50 @@
 		</div>
 	</div>
 
+	<!-- Site Settings Modal -->
+	<div class="modal fade" id="st-site-settings-modal" tabindex="-1" role="dialog" aria-labelledby="st-site-settings-title-label">
+		<div class="modal-dialog modal-lg" role="document">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" id="st-site-settings-title-label">Site Settings</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+				</div>
+				<div class="modal-body">
+					<ul class="nav nav-tabs mb-3" id="st-site-settings-tabs" role="tablist">
+						<li class="nav-item" role="presentation">
+							<button class="nav-link active" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#st-site-settings-tab-articles" aria-controls="st-site-settings-tab-articles" aria-selected="true"><i class="la la-newspaper me-1"></i> Articles</button>
+						</li>
+					</ul>
+					<div class="tab-content">
+
+						<!-- Articles: article types (root article folders) -->
+						<div class="tab-pane fade show active" id="st-site-settings-tab-articles" role="tabpanel">
+							<div class="mb-4">
+								<label class="form-label">Default article image</label>
+								<div class="d-flex align-items-center gap-2">
+									<img id="st-article-default-image-thumb" class="img-thumbnail d-none" src="" alt="Default article image" style="max-width: 120px;">
+									<button type="button" class="btn btn-sm btn-outline-secondary" id="st-article-default-image-choose">Choose image</button>
+									<button type="button" class="btn btn-sm btn-outline-danger d-none" id="st-article-default-image-remove">Remove</button>
+								</div>
+								<div class="form-text">Shown on article cards when an article has no image of its own and its article type has no default image.</div>
+							</div>
+							<p class="form-text mt-0">Article types (E.g. News, Projects, Blogs) group your articles. Each type is the first part of its articles' URLs, and can have its own default image.</p>
+							<ul class="list-group mb-3" id="st-article-types-list"></ul>
+							<label for="st-article-type-new-name" class="form-label">Add article type</label>
+							<div class="input-group">
+								<input type="text" class="form-control" id="st-article-type-new-name" placeholder="E.g. Case Studies" autocomplete="off">
+								<button class="btn btn-primary" type="button" id="st-article-type-add"><i class="la la-plus"></i> Add</button>
+							</div>
+						</div>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
 	<!-- Page Details Modal -->
 	<div class="modal fade" id="st-page-details-modal" tabindex="-1" role="dialog" aria-labelledby="st-page-details-title-label">
 		<div class="modal-dialog modal-lg" role="document">
@@ -2210,6 +2258,8 @@
 	<script src="libs/codemirror/lib/css.js"></script>
 	<script src="libs/codemirror/lib/formatting.js"></script>
 	<script src="libs/builder/plugin-codemirror.js"></script>
+	<!-- VS Code (Monaco) code editor - overrides the CodeMirror code editor panel; comment out to switch back to CodeMirror -->
+	<script src="libs/builder/plugin-monaco.js"></script>
 
 
 	<!--
@@ -2234,7 +2284,9 @@ Unzip the latest ckeditor release zip from https://github.com/ckeditor/ckeditor4
 	<script src="libs/jszip/jszip.min.js"></script>
 	<script src="libs/jszip/filesaver.min.js"></script>
 	<script src="libs/builder/plugin-jszip.js"></script>
+	<!-- ai assistant plugin - disabled, removes the AI assistant button from the element toolbar
 	<script src="libs/builder/plugin-ai-assistant.js"></script>
+	-->
 
 	<!-- autocomplete plugin used by autocomplete input-->
 	<!--

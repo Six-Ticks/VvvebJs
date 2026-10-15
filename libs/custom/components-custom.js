@@ -194,6 +194,10 @@ function registerComponent(component) {
 		},
 		onChange: function (node, property, value) {
 			componentOnChange(component, node, property, value);
+
+			// Vvveb re-selects the returned node - returning nothing would leave the selection on a node that
+			// saveComponentBlock() later replaces
+			return node;
 		},
 		custom: true
 	});
@@ -1648,6 +1652,19 @@ function saveComponentBlock(component, node) {
 		// check the response for an id
 		if (response && response.id) {
 
+			// remember if the node is selected, so the replacement can be selected instead
+			var wasSelected = (Vvveb.Builder.selectedEl === node);
+
+			// the node may have been replaced since the save started (E.g. by an earlier save of the same block),
+			// so find the block that is on the page now
+			if (!node.isConnected && window.FrameDocument) {
+				var liveNode = window.FrameDocument.querySelector('.st-website-block[data-id="' + (blockId || response.id) + '"]');
+				if (liveNode) {
+					node = liveNode;
+					wasSelected = wasSelected || (Vvveb.Builder.selectedEl === node);
+				}
+			}
+
 			// update the node with the new id
 			$(node).attr('data-id', response.id);
 
@@ -1705,6 +1722,11 @@ function saveComponentBlock(component, node) {
 
 						// remove the node
 						$(node).remove();
+
+						// select the replacement, so further changes in the properties panel update the block on the page
+						if (wasSelected && stWebsiteBlock[0].isConnected) {
+							Vvveb.Builder.selectNode(stWebsiteBlock[0]);
+						}
 					}
 				}
 			}

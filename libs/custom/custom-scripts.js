@@ -2109,6 +2109,270 @@ window.addEventListener('vvveb.FileManager.loadPage', function(e) {
 
 stPageDetailsModal.init();
 
+// Site Settings Modal — website-wide settings. Articles tab: create and rename article types (root article folders)
+const stSiteSettingsModal = {
+	_modal: null,
+
+	getModal: function() {
+		if (!this._modal) {
+			const el = document.getElementById('st-site-settings-modal');
+			if (el) {
+				this._modal = bootstrap.Modal.getOrCreateInstance(el);
+			}
+		}
+		return this._modal;
+	},
+
+	open: function() {
+		const modal = this.getModal();
+		if (!modal) {
+			return;
+		}
+		this.loadArticleTypes();
+		modal.show();
+	},
+
+	// reloads the file manager and the article folder pickers after an article type changes
+	refreshEditor: function() {
+		const selectedType = $('#filemanager-tabs .nav-link.active').data('type') || 'page';
+		stGetPages(selectedType);
+		stLoadFolderPaths();
+	},
+
+	loadArticleTypes: function() {
+		const list = document.getElementById('st-article-types-list');
+		if (!list) {
+			return;
+		}
+		list.innerHTML = '<li class="list-group-item text-muted">Loading...</li>';
+		stAjaxCall('getArticleSettings', {}, 'GET', true).then(function(response) {
+			list.innerHTML = '';
+			stSiteSettingsModal.setThumb(
+				document.getElementById('st-article-default-image-thumb'),
+				document.getElementById('st-article-default-image-remove'),
+				(response && response.default_image) ? response.default_image : ''
+			);
+			const types = (response && response.types) ? response.types : [];
+			if (types.length === 0) {
+				const empty = document.createElement('li');
+				empty.className = 'list-group-item text-muted';
+				empty.textContent = 'There are no article types yet.';
+				list.appendChild(empty);
+				return;
+			}
+			types.forEach(function(type) {
+				list.appendChild(stSiteSettingsModal.buildArticleTypeRow(type));
+			});
+		}).catch(function() {
+			list.innerHTML = '';
+		});
+	},
+
+	// builds an article type row - the name and URL, with a rename button that switches the row to edit mode
+	buildArticleTypeRow: function(type) {
+		const row = document.createElement('li');
+		row.className = 'list-group-item';
+
+		const view = document.createElement('div');
+		view.className = 'd-flex align-items-center';
+		const label = document.createElement('div');
+		label.className = 'flex-grow-1';
+		const name = document.createElement('div');
+		name.textContent = type.name;
+		const link = document.createElement('small');
+		link.className = 'text-muted';
+		link.textContent = '/' + type.link;
+		label.appendChild(name);
+		label.appendChild(link);
+		const renameBtn = document.createElement('button');
+		renameBtn.type = 'button';
+		renameBtn.className = 'btn btn-sm btn-outline-secondary';
+		renameBtn.title = 'Rename';
+		renameBtn.innerHTML = '<i class="la la-pencil-alt"></i>';
+
+		// the type's default image - shown on its article cards when an article has no image of its own
+		const thumb = document.createElement('img');
+		thumb.className = 'img-thumbnail d-none me-2';
+		thumb.alt = 'Default image';
+		thumb.style.maxWidth = '60px';
+		const imageBtn = document.createElement('button');
+		imageBtn.type = 'button';
+		imageBtn.className = 'btn btn-sm btn-outline-secondary me-1';
+		imageBtn.title = 'Choose default image';
+		imageBtn.innerHTML = '<i class="la la-image"></i>';
+		const removeImageBtn = document.createElement('button');
+		removeImageBtn.type = 'button';
+		removeImageBtn.className = 'btn btn-sm btn-outline-danger me-1 d-none';
+		removeImageBtn.title = 'Remove default image';
+		removeImageBtn.innerHTML = '<i class="la la-times"></i>';
+		stSiteSettingsModal.setThumb(thumb, removeImageBtn, type.image || '');
+		imageBtn.addEventListener('click', function() {
+			stSiteSettingsModal.chooseImage(type.id, thumb, removeImageBtn);
+		});
+		removeImageBtn.addEventListener('click', function() {
+			stSiteSettingsModal.saveImage(type.id, '', thumb, removeImageBtn);
+		});
+
+		view.appendChild(thumb);
+		view.appendChild(label);
+		view.appendChild(imageBtn);
+		view.appendChild(removeImageBtn);
+		view.appendChild(renameBtn);
+
+		const edit = document.createElement('div');
+		edit.className = 'd-none';
+		edit.innerHTML = '<div class="mb-2"><label class="form-label">Name</label><input type="text" class="form-control st-article-type-name"></div>'
+			+ '<div class="mb-2"><label class="form-label">URL</label><div class="input-group">'
+			+ '<input type="text" class="form-control st-article-type-link" autocomplete="off" readonly>'
+			+ '<button class="btn btn-outline-secondary st-article-type-unlock" type="button" title="Unlock to edit the URL"><i class="la la-lock"></i></button>'
+			+ '</div><div class="form-text">Changing the URL changes the URL of every article of this type, and will break any existing links to them.</div></div>'
+			+ '<div class="text-end"><button type="button" class="btn btn-sm btn-secondary me-1 st-article-type-cancel">Cancel</button>'
+			+ '<button type="button" class="btn btn-sm btn-primary st-article-type-save">Save</button></div>';
+		const nameInput = edit.querySelector('.st-article-type-name');
+		const linkInput = edit.querySelector('.st-article-type-link');
+		const unlockBtn = edit.querySelector('.st-article-type-unlock');
+
+		renameBtn.addEventListener('click', function() {
+			nameInput.value = type.name;
+			linkInput.value = type.link;
+			linkInput.readOnly = true;
+			unlockBtn.innerHTML = '<i class="la la-lock"></i>';
+			view.classList.add('d-none');
+			edit.classList.remove('d-none');
+			nameInput.focus();
+		});
+		unlockBtn.addEventListener('click', function() {
+			linkInput.readOnly = !linkInput.readOnly;
+			unlockBtn.innerHTML = linkInput.readOnly ? '<i class="la la-lock"></i>' : '<i class="la la-unlock"></i>';
+		});
+		edit.querySelector('.st-article-type-cancel').addEventListener('click', function() {
+			edit.classList.add('d-none');
+			view.classList.remove('d-none');
+		});
+		edit.querySelector('.st-article-type-save').addEventListener('click', function() {
+			stSiteSettingsModal.renameArticleType(type, nameInput.value, linkInput.readOnly ? '' : linkInput.value);
+		});
+
+		row.appendChild(view);
+		row.appendChild(edit);
+		return row;
+	},
+
+	// shows (or hides) an image thumbnail and its remove button
+	setThumb: function(img, removeBtn, src) {
+		if (img) {
+			img.src = src || '';
+			img.classList.toggle('d-none', !src);
+		}
+		if (removeBtn) {
+			removeBtn.classList.toggle('d-none', !src);
+		}
+	},
+
+	// opens the file manager to choose a default image - typeId is the article type autoid, or '' for the website
+	chooseImage: function(typeId, img, removeBtn) {
+		if (!Vvveb.MediaModal) {
+			Vvveb.MediaModal = new FileManager(true);
+		}
+		Vvveb.MediaModal.open(null, function(src, autoid) {
+			if (!autoid) {
+				displayToast('bg-warning', 'Warning', 'Please choose an image from the file manager.');
+				return;
+			}
+			stSiteSettingsModal.saveImage(typeId, autoid, img, removeBtn);
+		});
+	},
+
+	// saves a default image - an empty imageAutoid removes it
+	saveImage: function(typeId, imageAutoid, img, removeBtn) {
+		stAjaxCall('setArticleImage', { id: typeId, image_autoid: imageAutoid }, 'POST', true).then(function(response) {
+			if (!response || !response.success) {
+				return;
+			}
+			stSiteSettingsModal.setThumb(img, removeBtn, response.image || '');
+			displayToast('bg-success', 'Success', imageAutoid ? 'Default image saved.' : 'Default image removed.');
+		}).catch(function() {});
+	},
+
+	createArticleType: function() {
+		const input = document.getElementById('st-article-type-new-name');
+		const name = input ? input.value.trim() : '';
+		if (name === '') {
+			displayToast('bg-warning', 'Warning', 'Please enter a name for the article type.');
+			return;
+		}
+		stAjaxCall('createArticleType', { name: name }, 'POST', true).then(function(response) {
+			if (!response || !response.folder) {
+				return;
+			}
+			input.value = '';
+			displayToast('bg-success', 'Success', 'Article type added.');
+			stSiteSettingsModal.loadArticleTypes();
+			stSiteSettingsModal.refreshEditor();
+		}).catch(function() {});
+	},
+
+	// link is '' when the URL is left locked, so the existing article URLs are kept
+	renameArticleType: function(type, name, link) {
+		name = name.trim();
+		link = link.trim();
+		if (name === '') {
+			displayToast('bg-warning', 'Warning', 'Please enter a name for the article type.');
+			return;
+		}
+		if (link === type.link) {
+			link = '';
+		}
+		stAjaxCall('renameArticleType', { id: type.id, name: name, link: link }, 'POST', true).then(function(response) {
+			if (!response || !response.folder) {
+				return;
+			}
+			displayToast('bg-success', 'Success', 'Article type saved.');
+			stSiteSettingsModal.loadArticleTypes();
+			stSiteSettingsModal.refreshEditor();
+		}).catch(function() {});
+	},
+
+	init: function() {
+		const btn = document.getElementById('st-site-settings-btn');
+		if (btn) {
+			btn.addEventListener('click', function() {
+				stSiteSettingsModal.open();
+			});
+		}
+		const defaultThumb = document.getElementById('st-article-default-image-thumb');
+		const defaultRemoveBtn = document.getElementById('st-article-default-image-remove');
+		const defaultChooseBtn = document.getElementById('st-article-default-image-choose');
+		if (defaultChooseBtn) {
+			defaultChooseBtn.addEventListener('click', function() {
+				stSiteSettingsModal.chooseImage('', defaultThumb, defaultRemoveBtn);
+			});
+		}
+		if (defaultRemoveBtn) {
+			defaultRemoveBtn.addEventListener('click', function() {
+				stSiteSettingsModal.saveImage('', '', defaultThumb, defaultRemoveBtn);
+			});
+		}
+		const addBtn = document.getElementById('st-article-type-add');
+		if (addBtn) {
+			addBtn.addEventListener('click', function() {
+				stSiteSettingsModal.createArticleType();
+			});
+		}
+		const addInput = document.getElementById('st-article-type-new-name');
+		if (addInput) {
+			addInput.addEventListener('keydown', function(e) {
+				if (e.key === 'Enter') {
+					e.preventDefault();
+					stSiteSettingsModal.createArticleType();
+				}
+			});
+		}
+	}
+};
+
+stSiteSettingsModal.init();
+
 // Publish / Unpublish — Draft pages are not on the website; Published pages are live from their publish date
 const stPublishControl = {
 	_pageAutoid: null,

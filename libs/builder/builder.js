@@ -1576,17 +1576,18 @@ Vvveb.Builder = {
 			self.texteditEl = null;
 		}
 
+		// inside the navbar only link/image editing is allowed - hide actions that could
+		// restructure the nav or move elements in/out of it
+		let inNavbar = !!node.closest(".navbar");
+
 		if (elementType[1] == "BODY") {
 			SelectActions.style.display = "none";
 			AddSectionBtn.style.display = "none";
 		} else {
 			SelectActions.style.display = "";
-			AddSectionBtn.style.display = "";
+			AddSectionBtn.style.display = inNavbar ? "none" : "";
 		}
 
-		// inside the navbar only link/image editing is allowed - hide actions that could
-		// restructure the nav or move elements in/out of it
-		let inNavbar = !!node.closest(".navbar");
 		let navButtons = {
 			"drag-btn": !inNavbar,
 			"up-btn": !inNavbar,
@@ -1845,6 +1846,9 @@ Vvveb.Builder = {
 					} else {
 						document.getElementById("section-actions").classList.remove("outside");
 					}
+
+					// no add-element "+" on the navbar - nav editing is limited to links and images
+					document.getElementById("add-section-btn").style.display = node.closest(".navbar") ? "none" : "";
 
 					let elementType = self._getElementType(node);
 					document.querySelector("#highlight-name .type").innerHTML = elementType[0];
@@ -2521,6 +2525,27 @@ Vvveb.Builder = {
 		let headHtml = getTag(html, "head");
 		if (window.FrameDocument.head.innerHTML != headHtml) {
 			window.FrameDocument.head.innerHTML = headHtml;
+		}
+	},
+
+	//cleaned page html limited to the contents of <body> - doctype, <html> and <head> are not included
+	getBodyHtml: function () {
+		let html = this.getHtml();
+		let start = html.indexOf("<body");
+		let end = html.lastIndexOf("</body");
+
+		if (start >= 0 && end >= 0) {
+			return html.slice(html.indexOf(">", start) + 1, end);
+		}
+		return html;
+	},
+
+	//replace only the contents of <body> - <head> is left untouched
+	setBodyHtml: function (html) {
+		if (this.runJsOnSetHtml) {
+			this.frameBody.innerHTML = html;
+		} else {
+			window.FrameDocument.body.innerHTML = html;
 		}
 	},
 

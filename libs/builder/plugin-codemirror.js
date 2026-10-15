@@ -39,7 +39,8 @@ Vvveb.CodeEditor = {
 			this.codemirror.getDoc().on("change", function (e, v) { 
 				if (v.origin != "setValue") {
 					delay(() => {
-						Vvveb.Builder.setHtml(e.getValue());
+						//editor only holds the body content - write it to the body and leave <head> untouched
+						Vvveb.Builder.setBodyHtml(e.getValue());
 						//enable save button
 						document.querySelectorAll("#top-panel .save-btn").forEach(e => e.removeAttribute("disabled"));
 					}, 1000);
@@ -64,7 +65,7 @@ Vvveb.CodeEditor = {
 	setValue: function(value) {
 		if (this.isActive == true) {
 			let scrollInfo = this.codemirror.getScrollInfo();
-			this.codemirror.setValue(Vvveb.Builder.getHtml());
+			this.codemirror.setValue(Vvveb.Builder.getBodyHtml());
 			this.codemirror.scrollTo(scrollInfo.left, scrollInfo.top);
 			let self = this;
 			setTimeout(function() {
