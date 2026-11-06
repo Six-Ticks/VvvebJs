@@ -996,10 +996,11 @@ function stGetPages(type = 'page') {
 				) {
 					page.url = "/";
 				}
+				// keyed by the page autoid, so pages with the same title are all listed
 				if (page.title && page.url && page.id) {
-					pages[page.title] = {
+					pages[page.id] = {
 						id: page.id,
-						name: page.title,
+						name: page.id,
 						file: page.url,
 						title: page.title,
 						url: page.url,
@@ -1659,6 +1660,7 @@ const stPageDetailsModal = {
 	_originalMetaDescription: '',
 	_originalMenuAutoid: '',
 	_originalFooterAutoid: '',
+	_originalArticleTypes: '',
 	_originalImageAutoid: '',
 	_type: 'page',
 
@@ -1812,6 +1814,7 @@ const stPageDetailsModal = {
 					stDetailsArticleFolder.hide();
 				}
 			}
+			stPageDetailsModal.setArticleTypes(response.article_types || []);
 			stPageDetailsModal.setImage(response.image || '', response.image_autoid || '');
 			stPageDetailsModal._originalImageAutoid = (response.image && response.image_autoid) ? response.image_autoid : '';
 
@@ -1878,6 +1881,8 @@ const stPageDetailsModal = {
 		const metaChanged   = metaTitle !== this._originalMetaTitle || metaDescription !== this._originalMetaDescription;
 		const menuChanged   = menuAutoid !== this._originalMenuAutoid;
 		const footerChanged = footerAutoid !== this._originalFooterAutoid;
+		const articleTypes  = this.getArticleTypes();
+		const articleTypesChanged = this._type === 'article' && articleTypes.join(';') !== this._originalArticleTypes;
 		const imageChanged  = imageAutoid !== this._originalImageAutoid;
 
 		const tasks = [];
@@ -1912,6 +1917,12 @@ const stPageDetailsModal = {
 			);
 		}
 
+		if (articleTypesChanged) {
+			tasks.push(
+				stAjaxCall('setPageArticleTypes', { page_autoid: stCurrentPageAutoid, types: articleTypes }, 'POST')
+			);
+		}
+
 		if (menuChanged) {
 			tasks.push(
 				stAjaxCall('linkPageMenu', { page_autoid: stCurrentPageAutoid, menu_autoid: menuAutoid }, 'POST')
@@ -1934,6 +1945,53 @@ const stPageDetailsModal = {
 			bootstrap.Modal.getOrCreateInstance(document.getElementById('st-page-details-modal')).hide();
 		}).catch(function() {
 			displayToast('bg-danger', 'Error', 'Could not save page details.');
+		});
+	},
+
+	/**
+	 * setArticleTypes: Builds the additional article type tickboxes, leaving out the page's main type (its folder).
+	 *
+	 * @param {Array} types - The article types, as {id, name, ticked, main}.
+	 */
+	setArticleTypes: function(types) {
+		const row = document.querySelector('#st-page-details-modal [data-key="details-article-types"]');
+		const list = document.getElementById('st-page-details-article-types');
+		if (!row || !list) {
+			return;
+		}
+		list.innerHTML = '';
+		const options = types.filter(function(type) {
+			return !type.main;
+		});
+		options.forEach(function(type) {
+			const wrapper = document.createElement('div');
+			wrapper.className = 'form-check';
+			const input = document.createElement('input');
+			input.type = 'checkbox';
+			input.className = 'form-check-input st-page-details-article-type';
+			input.id = 'st-page-details-article-type-' + type.id;
+			input.value = type.id;
+			input.checked = !!type.ticked;
+			const label = document.createElement('label');
+			label.className = 'form-check-label';
+			label.htmlFor = input.id;
+			label.textContent = type.name;
+			wrapper.appendChild(input);
+			wrapper.appendChild(label);
+			list.appendChild(wrapper);
+		});
+		row.classList.toggle('d-none', this._type !== 'article' || options.length === 0);
+		this._originalArticleTypes = this.getArticleTypes().join(';');
+	},
+
+	/**
+	 * getArticleTypes: Returns the autoids of the ticked additional article types.
+	 *
+	 * @returns {Array}
+	 */
+	getArticleTypes: function() {
+		return Array.from(document.querySelectorAll('.st-page-details-article-type:checked')).map(function(input) {
+			return input.value;
 		});
 	},
 
@@ -2109,7 +2167,7 @@ window.addEventListener('vvveb.FileManager.loadPage', function(e) {
 
 stPageDetailsModal.init();
 
-// Site Settings Modal — website-wide settings. Articles tab: create and rename article types (root article folders)
+// Site Settings Modal — website-wide settings. General tab: the website logo. Articles tab: create and rename article types (root article folders)
 const stSiteSettingsModal = {
 	_modal: null,
 
@@ -2128,8 +2186,55 @@ const stSiteSettingsModal = {
 		if (!modal) {
 			return;
 		}
+		this.loadLogo();
 		this.loadArticleTypes();
 		modal.show();
+	},
+
+	loadLogo: function() {
+		stAjaxCall('getWebsiteLogo', {}, 'GET', true).then(function(response) {
+			stSiteSettingsModal.setThumb(
+				document.getElementById('st-website-logo-thumb'),
+				document.getElementById('st-website-logo-remove'),
+				(response && response.logo) ? response.logo : ''
+			);
+		}).catch(function() {});
+	},
+
+	// opens the file manager to choose the website logo
+	chooseLogo: function() {
+		if (!Vvveb.MediaModal) {
+			Vvveb.MediaModal = new FileManager(true);
+		}
+		Vvveb.MediaModal.open(null, function(src, autoid) {
+			if (!autoid) {
+				displayToast('bg-warning', 'Warning', 'Please choose an image from the file manager.');
+				return;
+			}
+			stSiteSettingsModal.saveLogo(autoid);
+		});
+	},
+
+	// saves the website logo - an empty imageAutoid removes it
+	saveLogo: function(imageAutoid) {
+		stAjaxCall('setWebsiteLogo', { image_autoid: imageAutoid }, 'POST', true).then(function(response) {
+			if (!response || !response.success) {
+				return;
+			}
+			const logo = response.logo || '';
+			stSiteSettingsModal.setThumb(
+				document.getElementById('st-website-logo-thumb'),
+				document.getElementById('st-website-logo-remove'),
+				logo
+			);
+
+			// show the new logo in the editor canvas - preview only, as the logo isn't saved with the page
+			const canvasLogo = window.FrameDocument ? window.FrameDocument.querySelector('#nav-logo') : null;
+			if (canvasLogo) {
+				canvasLogo.setAttribute('src', logo);
+			}
+			displayToast('bg-success', 'Success', imageAutoid ? 'Logo saved.' : 'Logo removed.');
+		}).catch(function() {});
 	},
 
 	// reloads the file manager and the article folder pickers after an article type changes
@@ -2338,6 +2443,18 @@ const stSiteSettingsModal = {
 		if (btn) {
 			btn.addEventListener('click', function() {
 				stSiteSettingsModal.open();
+			});
+		}
+		const logoChooseBtn = document.getElementById('st-website-logo-choose');
+		if (logoChooseBtn) {
+			logoChooseBtn.addEventListener('click', function() {
+				stSiteSettingsModal.chooseLogo();
+			});
+		}
+		const logoRemoveBtn = document.getElementById('st-website-logo-remove');
+		if (logoRemoveBtn) {
+			logoRemoveBtn.addEventListener('click', function() {
+				stSiteSettingsModal.saveLogo('');
 			});
 		}
 		const defaultThumb = document.getElementById('st-article-default-image-thumb');

@@ -2009,13 +2009,27 @@
 				<div class="modal-body">
 					<ul class="nav nav-tabs mb-3" id="st-site-settings-tabs" role="tablist">
 						<li class="nav-item" role="presentation">
-							<button class="nav-link active" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#st-site-settings-tab-articles" aria-controls="st-site-settings-tab-articles" aria-selected="true"><i class="la la-newspaper me-1"></i> Articles</button>
+							<button class="nav-link active" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#st-site-settings-tab-general" aria-controls="st-site-settings-tab-general" aria-selected="true"><i class="la la-cog me-1"></i> General</button>
+						</li>
+						<li class="nav-item" role="presentation">
+							<button class="nav-link" type="button" role="tab" data-bs-toggle="tab" data-bs-target="#st-site-settings-tab-articles" aria-controls="st-site-settings-tab-articles" aria-selected="false"><i class="la la-newspaper me-1"></i> Articles</button>
 						</li>
 					</ul>
 					<div class="tab-content">
 
+						<!-- General: website logo -->
+						<div class="tab-pane fade show active" id="st-site-settings-tab-general" role="tabpanel">
+							<label class="form-label">Logo</label>
+							<div class="d-flex align-items-center gap-2">
+								<img id="st-website-logo-thumb" class="img-thumbnail d-none" src="" alt="Website logo" style="max-width: 120px;">
+								<button type="button" class="btn btn-sm btn-outline-secondary" id="st-website-logo-choose">Choose image</button>
+								<button type="button" class="btn btn-sm btn-outline-danger d-none" id="st-website-logo-remove">Remove</button>
+							</div>
+							<div class="form-text">Shown in the website's menu.</div>
+						</div>
+
 						<!-- Articles: article types (root article folders) -->
-						<div class="tab-pane fade show active" id="st-site-settings-tab-articles" role="tabpanel">
+						<div class="tab-pane fade" id="st-site-settings-tab-articles" role="tabpanel">
 							<div class="mb-4">
 								<label class="form-label">Default article image</label>
 								<div class="d-flex align-items-center gap-2">
@@ -2071,10 +2085,15 @@
 								<input type="text" class="form-control" id="st-page-details-name" placeholder="Page title">
 							</div>
 							<div class="mb-3 d-none" data-key="details-article-folder">
-								<label class="form-label">Folder <span class="text-danger">*</span></label>
+								<label class="form-label">Main Category <span class="text-danger">*</span></label>
 								<input type="hidden" id="st-page-details-article-folder" value="">
 								<div class="st-details-article-folder-container"></div>
 								<div class="form-text">Changing the folder changes the article's URL.</div>
+							</div>
+							<div class="mb-3 d-none" data-key="details-article-types">
+								<label class="form-label">Additional Categories</label>
+								<div id="st-page-details-article-types"></div>
+								<div class="form-text">The article also appears on the index pages of the types ticked here. Its URL still comes from its main category.</div>
 							</div>
 							<div class="row">
 								<div class="col-12 mb-3">

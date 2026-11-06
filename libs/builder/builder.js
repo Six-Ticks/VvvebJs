@@ -1154,19 +1154,32 @@ Vvveb.Builder = {
 		});
 	},
 
-	loadUrl: function (url, callback) {
+	loadUrl: function (url, callback, id = "") {
 		let self = this;
 		document.getElementById("select-box").style.display = "none";
 
 		self.initCallback = callback;
+
+		// hide the save buttons until this page has loaded - a save targets the new page from now on, but the canvas
+		// still holds the previous page
+		$('#save-btns').addClass('d-none');
+
+		// only the latest load counts - a slower response for a page the user has since left is ignored
+		const pageLoadId = self.pageLoadId = (self.pageLoadId || 0) + 1;
 
 		// get the html for this page
 		var action = 'getHtml';
 		var data = {};
 		data["url"] = url;
 
+		// the page autoid - the slug alone can match pages in different folders (E.g. en/about and cy/about)
+		data["id"] = id;
+
 		if(typeof stAjaxCall === 'function') {
 			stAjaxCall(action, data, 'POST').then(async (response) => {
+				if (pageLoadId !== self.pageLoadId) {
+					return;
+				}
 				window.stNavMenuName = (response && response.nav_menu_name) ? response.nav_menu_name : '';
 				window.stNavChanged  = false;
 				window.stFooterAutoid = (response && response.footer_autoid) ? response.footer_autoid : '';
@@ -1174,46 +1187,48 @@ Vvveb.Builder = {
 				window.stFooterChanged = false;
 				if(response && response.html) {
 					let html = response.html;
-					if (html) {
 
-						// set any css or js that should be loaded in the iframe
-						self.iframe.onload = () => {
-							const doc = self.iframe.contentDocument;
-							const head = doc.head;
-							const body = doc.body;
+					// set any css or js that should be loaded in the iframe
+					self.iframe.onload = () => {
+						const doc = self.iframe.contentDocument;
+						const head = doc.head;
+						const body = doc.body;
 
-							if (response.css) {
-								const style = doc.createElement('style');
-								style.classList.add('st-ignore');
-								style.textContent = response.css;
-								head.appendChild(style);
-							}
+						if (response.css) {
+							const style = doc.createElement('style');
+							style.classList.add('st-ignore');
+							style.textContent = response.css;
+							head.appendChild(style);
+						}
 
-							if (response.js) {
-								const script = doc.createElement('script');
-								script.classList.add('st-ignore');
-								script.textContent = response.js;
-								body.appendChild(script)
-							}
+						if (response.js) {
+							const script = doc.createElement('script');
+							script.classList.add('st-ignore');
+							script.textContent = response.js;
+							body.appendChild(script)
+						}
 
-							if(response.editor_css) {
-								Vvveb.StyleManager.setCss(response.editor_css);
-							}
-						};
+						if(response.editor_css) {
+							Vvveb.StyleManager.setCss(response.editor_css);
+						}
 
-						// load the HTML into the iframe
-						self.iframe.setAttribute('srcdoc', html);
+						// the page is ready, so show the save buttons
+						if (pageLoadId === self.pageLoadId) {
+							$('#save-btns').removeClass('d-none');
+						}
+					};
 
-						// show save buttons
-						$('#save-btns').removeClass('d-none');
+					// load the HTML into the iframe
+					self.iframe.setAttribute('srcdoc', html);
 
-					} else {
+				} else {
 
-						// hide save buttons
-						$('#save-btns').addClass('d-none');
-
-						displayToast("bg-danger", "Error", "Error loading page: " + response.message);
-					}
+					// the save buttons stay hidden, as the canvas still holds the previous page
+					displayToast("bg-danger", "Error", "Error loading page. Please try again.");
+				}
+			}).catch(() => {
+				if (pageLoadId === self.pageLoadId) {
+					displayToast("bg-danger", "Error", "Error loading page. Please try again.");
 				}
 			});
 		}
@@ -2945,6 +2960,12 @@ Vvveb.Gui = {
 
 	//post html content through ajax to save to filesystem/db
 	saveAjax: function (event, saveUrl = null, saveBtn = null) {
+
+		// no saving while the save buttons are hidden (no page is ready) - Ctrl + S gets here without the button
+		if (document.getElementById('save-btns')?.classList.contains('d-none')) {
+			return;
+		}
+
 		let btn = saveBtn ?? this;
 		saveUrl = saveUrl ?? this.dataset.vvvebUrl;
 		let file = Vvveb.FileManager.getPageData('file');
@@ -4298,11 +4319,14 @@ Vvveb.FileManager = {
 
 		let page = generateElements(tmpl("vvveb-filemanager-page", data))[0];
 
+		// the template does not encode values, so set the real name here (a title can contain quotes)
+		page.setAttribute("data-page", name);
+
 		if(data.id) {
 			page.setAttribute("data-id", data.id);
 		}
 
-		if (afterPage && (afterPage = folder.querySelector('[data-page="' + afterPage + '"]'))) {
+		if (afterPage && (afterPage = folder.querySelector('[data-page="' + CSS.escape(afterPage) + '"]'))) {
 			afterPage.after(page);
 		} else {
 			folder.append(page);
@@ -4332,7 +4356,7 @@ Vvveb.FileManager = {
 	},
 
 	addComponent: function (name, url, title, page) {
-		document.querySelector("[data-page='" + page + "'] > ol", this.tree).append(
+		document.querySelector("[data-page='" + CSS.escape(page) + "'] > ol", this.tree).append(
 			tmpl("vvveb-filemanager-component", { name: name, url: url, title: title }));
 	},
 
@@ -4342,7 +4366,7 @@ Vvveb.FileManager = {
 		getNodeTree(window.FrameDocument.body, tree, allowedComponents);
 
 		let html = drawComponentsTree(tree);
-		document.querySelector("[data-page='" + this.currentPage + "'] > ol", this.tree).replaceWith(html);
+		document.querySelector("[data-page='" + CSS.escape(this.currentPage) + "'] > ol", this.tree).replaceWith(html);
 	},
 
 	getCurrentUrl: function () {
@@ -4399,7 +4423,7 @@ Vvveb.FileManager = {
 			return;
 		}
 
-		let page = this.tree.querySelector("[data-page='" + name + "']");
+		let page = this.tree.querySelector("[data-page='" + CSS.escape(name) + "']");
 		//remove active from current active page
 		this.tree.querySelector("[data-page].active")?.classList.remove("active");
 		//set loaded page as active
@@ -4430,7 +4454,7 @@ Vvveb.FileManager = {
 					} else if (typeof window[callback] === "function") {
 						window[callback](callbackParams);
 					}
-				});
+				}, self.pages[name]['id'] ?? "");
 		}
 	},
 
