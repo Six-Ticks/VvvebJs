@@ -95,6 +95,15 @@
 					<i class="la la-cog la-lg"></i>
 				</button>
 
+				<!-- Page languages: open (or create) this page in another language. Only shown when the website uses
+					more than one language -->
+				<div class="btn-group d-none" role="group" id="st-language-switch">
+					<button class="btn btn-light dropdown-toggle" type="button" id="st-language-btn" data-bs-toggle="dropdown" aria-expanded="false" title="Page language">
+						<i class="la la-language la-lg"></i> <span class="st-language-label"></span>
+					</button>
+					<ul class="dropdown-menu" id="st-language-menu" aria-labelledby="st-language-btn"></ul>
+				</div>
+
 				<button class="btn btn-light" title="Site settings" id="st-site-settings-btn">
 					<i class="la la-sliders-h la-lg"></i>
 				</button>
@@ -1884,6 +1893,17 @@
 							</div>
 						</div>
 
+
+						<!-- Menu/footer language: only shown for a menu or footer when the website uses more than one language -->
+						<div class="mb-3 row d-none" data-key="menu-language">
+							<label class="col-sm-3 col-form-label">Language</label>
+							<div class="col-sm-9 input">
+								<div>
+									<select class="form-select st-language-select" name="menu_language_id" disabled></select>
+								</div>
+							</div>
+						</div>
+
 						<div class="mb-3 row d-none" data-key="article-folder">
 							<label class="col-sm-3 col-form-label">Folder <span class="text-danger">*</span></label>
 							<div class="col-sm-9 input">
@@ -2095,6 +2115,17 @@
 								<div id="st-page-details-article-types"></div>
 								<div class="form-text">The article also appears on the index pages of the types ticked here. Its URL still comes from its main category.</div>
 							</div>
+							<!-- Page languages: only shown when the website uses more than one language -->
+							<div class="mb-3 d-none" data-key="details-language">
+								<label for="st-page-details-language" class="form-label">Language</label>
+								<select class="form-select st-language-select" id="st-page-details-language"></select>
+								<div class="form-text">The page's URL starts with its language (E.g. /cy/...).</div>
+							</div>
+							<div class="mb-3 d-none" data-key="details-linked-page">
+								<label for="st-page-details-linked-page" class="form-label">Linked Page</label>
+								<select class="form-select st-linked-page-select" id="st-page-details-linked-page"></select>
+								<div class="form-text">The default language version of this page.</div>
+							</div>
 							<div class="row">
 								<div class="col-12 mb-3">
 									<label for="st-page-details-link" class="form-label">URL</label>
@@ -2146,14 +2177,14 @@
 									<select class="form-select mb-2" id="st-page-details-menu-select">
 										<option value="">Loading…</option>
 									</select>
-									<button type="button" class="btn btn-sm btn-outline-secondary" id="st-page-details-set-default">Set selected menu as site default</button>
+									<button type="button" class="btn btn-sm btn-outline-secondary" id="st-page-details-set-default">Set selected menu as default</button>
 								</div>
 								<div class="col-md-6 mb-3">
 									<label for="st-page-details-footer-select" class="form-label">Footer</label>
 									<select class="form-select mb-2" id="st-page-details-footer-select">
 										<option value="">Loading…</option>
 									</select>
-									<button type="button" class="btn btn-sm btn-outline-secondary" id="st-page-details-set-default-footer">Set selected footer as site default</button>
+									<button type="button" class="btn btn-sm btn-outline-secondary" id="st-page-details-set-default-footer">Set selected footer as default</button>
 								</div>
 							</div>
 						</div>
@@ -2162,6 +2193,33 @@
 				<div class="modal-footer">
 					<button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
 					<button type="button" class="btn btn-primary" id="st-page-details-save">Save</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Menu / footer details: name and (when the website uses more than one language) language -->
+	<div class="modal fade" id="st-layout-details-modal" tabindex="-1" role="dialog" aria-labelledby="st-layout-details-title-label">
+		<div class="modal-dialog" role="document">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" id="st-layout-details-title-label">Menu Details</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+				</div>
+				<div class="modal-body">
+					<div class="mb-3">
+						<label for="st-layout-details-name" class="form-label">Name</label>
+						<input type="text" class="form-control" id="st-layout-details-name">
+					</div>
+					<div class="mb-3 d-none" data-key="layout-language">
+						<label for="st-layout-details-language" class="form-label">Language</label>
+						<select class="form-select st-language-select" id="st-layout-details-language"></select>
+						<div class="form-text">Pages in this language use it when it's set as the default (Page Details &rarr; Layout).</div>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+					<button type="button" class="btn btn-primary" id="st-layout-details-save">Save</button>
 				</div>
 			</div>
 		</div>

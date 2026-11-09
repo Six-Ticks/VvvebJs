@@ -212,6 +212,9 @@ $(document).ready(function () {
 				break;
 		}
 
+		// the Language select for a new menu or footer (only when the website uses page languages)
+		stNewLayoutLanguage.toggle(selectedType === 'menu' || selectedType === 'footer');
+
 		function changeFieldLabel(label, field, name, placeholder = "") {
 			if(field.length) {
 				label.text(name);
@@ -942,7 +945,7 @@ function stGetPages(type = 'page') {
 	// hide the #select-actions element
 	$('#select-actions').hide();
 
-	stAjaxCall('getPages', {type: type}, 'GET').then(async (response) => {
+	return stAjaxCall('getPages', {type: type}, 'GET').then(async (response) => {
 
 		// FileManager.init() clears its previous listeners and rebuilds the page tree, so runs every time
 		Vvveb.FileManager.init();
@@ -1002,7 +1005,8 @@ function stGetPages(type = 'page') {
 						id: page.id,
 						name: page.id,
 						file: page.url,
-						title: page.title,
+						// with page languages, the page's language prefix is shown after its title
+						title: page.language ? page.title + ' (' + page.language + ')' : page.title,
 						url: page.url,
 						folder: (type === 'article' && page.folder && rootOf[page.folder]) ? rootOf[page.folder] : (page.group || null),
 						description: page.description || '',
@@ -1662,7 +1666,62 @@ const stPageDetailsModal = {
 	_originalFooterAutoid: '',
 	_originalArticleTypes: '',
 	_originalImageAutoid: '',
+	_originalLanguageId: '',
+	_originalLinkedPageAutoid: '',
+	_languagesActive: false,
 	_type: 'page',
+
+	/**
+	 * setLanguage: Shows and fills the Language and Linked Page fields, when the website uses page languages
+	 *  (the response then has 'languages').
+	 *
+	 * @param {Object} response - The getPageDetails response.
+	 */
+	setLanguage: function(response) {
+		const modal = document.getElementById('st-page-details-modal');
+		const languageRow = modal.querySelector('[data-key="details-language"]');
+		const linkedRow = modal.querySelector('[data-key="details-linked-page"]');
+		const languageSelect = document.getElementById('st-page-details-language');
+		const linkedSelect = document.getElementById('st-page-details-linked-page');
+		this._languagesActive = Array.isArray(response.languages) && response.languages.length > 0;
+		if (!this._languagesActive) {
+			languageRow?.classList.add('d-none');
+			linkedRow?.classList.add('d-none');
+			return;
+		}
+
+		this._originalLanguageId = String(response.language_id || '');
+		this._originalLinkedPageAutoid = response.linked_page_autoid || '';
+		stFillLanguageSelect(languageSelect, response.languages, this._originalLanguageId);
+		stFillLinkedPageSelect(linkedSelect, response.linkable_pages || [], this._originalLinkedPageAutoid);
+		languageRow?.classList.remove('d-none');
+
+		// the linked page is only for pages that aren't in the default language
+		const defaultId = String(response.default_language_id || '');
+		const toggleLinked = function() {
+			linkedRow?.classList.toggle('d-none', languageSelect.value === defaultId);
+		};
+		languageSelect.onchange = toggleLinked;
+		toggleLinked();
+	},
+
+	/**
+	 * getLanguage: The chosen language and linked page, or null when the website doesn't use page languages.
+	 *
+	 * @return {Object|null}
+	 */
+	getLanguage: function() {
+		if (!this._languagesActive) {
+			return null;
+		}
+		const languageSelect = document.getElementById('st-page-details-language');
+		const linkedSelect = document.getElementById('st-page-details-linked-page');
+		const linkedRow = document.querySelector('#st-page-details-modal [data-key="details-linked-page"]');
+		return {
+			language_id: languageSelect ? String(languageSelect.value) : '',
+			linked_page_autoid: (linkedSelect && linkedRow && !linkedRow.classList.contains('d-none')) ? linkedSelect.value : ''
+		};
+	},
 
 	// unlocks the URL field so a changed URL is saved
 	unlockLink: function() {
@@ -1816,6 +1875,7 @@ const stPageDetailsModal = {
 			}
 			stPageDetailsModal.setArticleTypes(response.article_types || []);
 			stPageDetailsModal.setImage(response.image || '', response.image_autoid || '');
+			stPageDetailsModal.setLanguage(response);
 			stPageDetailsModal._originalImageAutoid = (response.image && response.image_autoid) ? response.image_autoid : '';
 
 			if (menuSelect) {
@@ -1828,7 +1888,7 @@ const stPageDetailsModal = {
 				menus.forEach(function(menu) {
 					const isSelected = menu.autoid === linkedMenuAutoid ? ' selected' : '';
 					const defaultLabel = menu['default'] ? ' (default)' : '';
-					html += `<option value="${menu.autoid}"${isSelected}>${menu.name}${defaultLabel}</option>`;
+					html += `<option value="${menu.autoid}"${isSelected}>${menu.name}${menu.language ? ' (' + menu.language + ')' : ''}${defaultLabel}</option>`;
 				});
 				menuSelect.innerHTML = html;
 			}
@@ -1843,7 +1903,7 @@ const stPageDetailsModal = {
 				footers.forEach(function(footer) {
 					const isSelected = footer.autoid === linkedFooterAutoid ? ' selected' : '';
 					const defaultLabel = footer['default'] ? ' (default)' : '';
-					footerHtml += `<option value="${footer.autoid}"${isSelected}>${footer.name}${defaultLabel}</option>`;
+					footerHtml += `<option value="${footer.autoid}"${isSelected}>${footer.name}${footer.language ? ' (' + footer.language + ')' : ''}${defaultLabel}</option>`;
 				});
 				footerSelect.innerHTML = footerHtml;
 			}
@@ -1920,6 +1980,17 @@ const stPageDetailsModal = {
 		if (articleTypesChanged) {
 			tasks.push(
 				stAjaxCall('setPageArticleTypes', { page_autoid: stCurrentPageAutoid, types: articleTypes }, 'POST')
+			);
+		}
+
+		const language = this.getLanguage();
+		if (language && (language.language_id !== this._originalLanguageId || language.linked_page_autoid !== this._originalLinkedPageAutoid)) {
+			tasks.push(
+				stAjaxCall('setPageLanguage', {
+					page_autoid: stCurrentPageAutoid,
+					language_id: language.language_id,
+					linked_page_autoid: language.linked_page_autoid
+				}, 'POST')
 			);
 		}
 
@@ -2068,7 +2139,7 @@ const stPageDetailsModal = {
 							menus.forEach(function(menu) {
 								const isSelected = menu.autoid === currentValue ? ' selected' : '';
 								const defaultLabel = menu['default'] ? ' (default)' : '';
-								html += `<option value="${menu.autoid}"${isSelected}>${menu.name}${defaultLabel}</option>`;
+								html += `<option value="${menu.autoid}"${isSelected}>${menu.name}${menu.language ? ' (' + menu.language + ')' : ''}${defaultLabel}</option>`;
 							});
 							menuSelect.innerHTML = html;
 						});
@@ -2104,7 +2175,7 @@ const stPageDetailsModal = {
 							footers.forEach(function(footer) {
 								const isSelected = footer.autoid === currentValue ? ' selected' : '';
 								const defaultLabel = footer['default'] ? ' (default)' : '';
-								html += `<option value="${footer.autoid}"${isSelected}>${footer.name}${defaultLabel}</option>`;
+								html += `<option value="${footer.autoid}"${isSelected}>${footer.name}${footer.language ? ' (' + footer.language + ')' : ''}${defaultLabel}</option>`;
 							});
 							footerSelect.innerHTML = html;
 						});
@@ -2136,7 +2207,9 @@ const stPageDetailsModal = {
 					return;
 				}
 				const pageId = li.dataset.id || null;
-				if (pageId) {
+				if (pageId && (pageId.indexOf('menu_') === 0 || pageId.indexOf('footer_') === 0)) {
+					stLayoutDetailsModal.open(pageId);
+				} else if (pageId) {
 					stPageDetailsModal.open(pageId);
 				}
 			}, true); // capture phase so we beat builder.js
@@ -2541,6 +2614,7 @@ const stPublishControl = {
 		this._pageAutoid = null;
 		btn.classList.add('d-none');
 		stSetPreviewVisible(true);
+		stLanguageSwitch.render(null);
 		if (!pageAutoid || pageAutoid.indexOf('menu_') === 0 || pageAutoid.indexOf('footer_') === 0) {
 			return;
 		}
@@ -2549,6 +2623,9 @@ const stPublishControl = {
 			if (!response || stCurrentPageAutoid !== pageAutoid) {
 				return;
 			}
+
+			// the page's language versions (shown when the website uses page languages)
+			stLanguageSwitch.render(response);
 
 			// draft and scheduled pages aren't on the website, so there's nothing to view
 			stSetPreviewVisible(response.type === 'template' || response.state === 'published');
@@ -2653,6 +2730,111 @@ const stPublishControl = {
 };
 
 stPublishControl.init();
+
+/**
+ * stLanguageSwitch: The toolbar's page language dropdown. Each of the website's languages either opens the page's
+ *  version in that language, or creates it (a copy of this page, linked to the default language page) and opens it.
+ *  Filled from the getPageDetails response's 'versions', so it only shows when the website uses page languages.
+ */
+const stLanguageSwitch = {
+	_type: 'page',
+
+	/**
+	 * render: Fills (or hides) the dropdown.
+	 *
+	 * @param {Object|null} response - The getPageDetails response, or null to hide it.
+	 */
+	render: function(response) {
+		const group = document.getElementById('st-language-switch');
+		const menu = document.getElementById('st-language-menu');
+		if (!group || !menu) {
+			return;
+		}
+		const versions = (response && Array.isArray(response.versions)) ? response.versions : [];
+		if (!versions.length || response.type === 'template') {
+			group.classList.add('d-none');
+			menu.innerHTML = '';
+			return;
+		}
+		this._type = response.type || 'page';
+
+		menu.innerHTML = '';
+		versions.forEach(function(version) {
+			const item = document.createElement('li');
+			const link = document.createElement('a');
+			link.className = 'dropdown-item d-flex justify-content-between gap-3';
+			link.href = '#';
+			const name = document.createElement('span');
+			name.textContent = version.label + ' (/' + version.prefix + ')';
+			const note = document.createElement('small');
+			note.className = 'text-muted';
+			if (version.state === 'current') {
+				link.classList.add('active');
+				link.setAttribute('aria-current', 'page');
+				document.querySelector('#st-language-btn .st-language-label').textContent = version.label;
+			} else if (version.state === 'exists') {
+				note.textContent = 'Open';
+			} else if (version.state === 'missing') {
+				note.textContent = 'Create';
+			} else {
+				link.classList.add('disabled');
+				link.setAttribute('aria-disabled', 'true');
+				note.textContent = 'Create the default language version first';
+			}
+			link.appendChild(name);
+			link.appendChild(note);
+			if (version.state === 'exists' || version.state === 'missing') {
+				link.addEventListener('click', function(e) {
+					e.preventDefault();
+					stLanguageSwitch.open(version);
+				});
+			} else {
+				link.addEventListener('click', function(e) {
+					e.preventDefault();
+				});
+			}
+			item.appendChild(link);
+			menu.appendChild(item);
+		});
+		group.classList.remove('d-none');
+	},
+
+	/**
+	 * open: Opens (or creates, then opens) a language version of the current page.
+	 *
+	 * @param {Object} version - {language_id, label, state, page_autoid}.
+	 */
+	open: function(version) {
+		if (!stCurrentPageAutoid) {
+			return;
+		}
+
+		// the editor doesn't check for unsaved changes when it changes page, so ask here
+		if (Vvveb.Undo && typeof Vvveb.Undo.hasChanges === 'function' && Vvveb.Undo.hasChanges()
+			&& !confirm('You have unsaved changes. Leave this page without saving?')
+		) {
+			return;
+		}
+
+		const type = this._type;
+		// errors are shown by stAjaxCall (alert = true)
+		stAjaxCall('openLanguageVersion', { page_autoid: stCurrentPageAutoid, language_id: version.language_id }, 'POST', true).then(function(response) {
+			if (!response || !response.id) {
+				return;
+			}
+			if (!response.created) {
+				Vvveb.FileManager.loadPage(response.id);
+				return;
+			}
+
+			// a new page - reload the page list so it's in it, then open it
+			Promise.resolve(stGetPages(type)).then(function() {
+				displayToast('bg-success', 'Success', 'Created the ' + version.label + ' version of this page (as a draft).');
+				Vvveb.FileManager.loadPage(response.id);
+			});
+		}).catch(function() {});
+	}
+};
 
 /**
  * stSetPagePublishState: Updates a page's status dot in the page list (green published, amber scheduled, grey draft).
@@ -2895,3 +3077,190 @@ function stFooterSaveConfirm(footerName) {
 }
 
 Vvveb.ElementHighlighter.init();
+/**
+ * stNewLayoutLanguage: The New modal's Language select for a menu or footer. The languages are loaded once
+ *  (getLayoutLanguages); the row stays hidden when the website doesn't use page languages.
+ */
+const stNewLayoutLanguage = {
+	_languages: null,
+
+	/**
+	 * toggle: Shows (filled, the default language selected) or hides the Language row.
+	 *
+	 * @param {Boolean} show - TRUE for a menu or footer.
+	 */
+	toggle: function(show) {
+		const row = document.querySelector('#new-page-modal [data-key="menu-language"]');
+		const select = row ? row.querySelector('select') : null;
+		if (!row || !select) {
+			return;
+		}
+
+		const hide = function() {
+			row.classList.add('d-none');
+			select.disabled = true;
+		};
+		const render = function(languages) {
+			const type = $('#new-page-modal select[name="type"]').val();
+			if (!languages.length || (type !== 'menu' && type !== 'footer')) {
+				hide();
+				return;
+			}
+			const defaultLanguage = languages.find(function(language) { return language.default; }) || languages[0];
+			stFillLanguageSelect(select, languages, defaultLanguage.id);
+			select.disabled = false;
+			row.classList.remove('d-none');
+		};
+
+		if (!show) {
+			hide();
+			return;
+		}
+		if (this._languages !== null) {
+			render(this._languages);
+			return;
+		}
+		const self = this;
+		stAjaxCall('getLayoutLanguages', {}, 'GET').then(function(response) {
+			self._languages = (response && Array.isArray(response.languages)) ? response.languages : [];
+			render(self._languages);
+		}).catch(function() {
+			hide();
+		});
+	}
+};
+
+/**
+ * stLayoutDetailsModal: The details modal for a menu or footer (opened from its cog in the Menus/Footers tabs) -
+ *  its name and, when the website uses page languages, its language.
+ */
+const stLayoutDetailsModal = {
+	_type: null,
+	_autoid: null,
+	_languagesActive: false,
+
+	/**
+	 * open: Loads a menu's or footer's details and shows the modal.
+	 *
+	 * @param {String} id - "menu_<autoid>" or "footer_<autoid>".
+	 */
+	open: function(id) {
+		const modalEl = document.getElementById('st-layout-details-modal');
+		if (!modalEl || !id) {
+			return;
+		}
+		const type = (id.indexOf('menu_') === 0) ? 'menu' : 'footer';
+		const autoid = id.substring(type.length + 1);
+		const self = this;
+
+		stAjaxCall('getLayoutDetails', { type: type, autoid: autoid }, 'GET', true).then(function(response) {
+			if (!response || !response.autoid) {
+				return;
+			}
+			self._type = type;
+			self._autoid = autoid;
+			self._languagesActive = !!response.languages_active && Array.isArray(response.languages) && response.languages.length > 0;
+
+			document.getElementById('st-layout-details-title-label').textContent = (type === 'menu') ? 'Menu Details' : 'Footer Details';
+			document.getElementById('st-layout-details-name').value = response.name || '';
+
+			const row = modalEl.querySelector('[data-key="layout-language"]');
+			const select = document.getElementById('st-layout-details-language');
+			if (self._languagesActive) {
+				stFillLanguageSelect(select, response.languages, response.language_id);
+				row.classList.remove('d-none');
+			} else {
+				row.classList.add('d-none');
+			}
+
+			bootstrap.Modal.getOrCreateInstance(modalEl).show();
+		}).catch(function() {});
+	},
+
+	/**
+	 * save: Saves the name and language, then reloads the list so the language shown after the name is current.
+	 */
+	save: function() {
+		if (!this._type || !this._autoid) {
+			return;
+		}
+		const name = document.getElementById('st-layout-details-name').value.trim();
+		if (name === '') {
+			displayToast('bg-warning', 'Warning', 'Please enter a name.');
+			return;
+		}
+		const data = { type: this._type, autoid: this._autoid, name: name };
+		if (this._languagesActive) {
+			data.language_id = document.getElementById('st-layout-details-language').value;
+		}
+		const type = this._type;
+
+		stAjaxCall('saveLayoutDetails', data, 'POST', true).then(function(response) {
+			if (!response || !response.success) {
+				return;
+			}
+			displayToast('bg-success', 'Success', response.message || 'Details saved.');
+			bootstrap.Modal.getOrCreateInstance(document.getElementById('st-layout-details-modal')).hide();
+			stGetPages(type);
+		}).catch(function() {});
+	}
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+	const saveBtn = document.getElementById('st-layout-details-save');
+	if (saveBtn) {
+		saveBtn.addEventListener('click', function() {
+			stLayoutDetailsModal.save();
+		});
+	}
+});
+
+/**
+ * stFillLanguageSelect: Fills a language select with the website's languages.
+ *
+ * @param {HTMLSelectElement} select
+ * @param {Array} languages - Each {id, name, prefix, flag, default}.
+ * @param {String} selected - The selected language id.
+ */
+function stFillLanguageSelect(select, languages, selected) {
+	if (!select) {
+		return;
+	}
+	select.innerHTML = '';
+	languages.forEach(function(language) {
+		const option = document.createElement('option');
+		option.value = String(language.id);
+		option.textContent = language.name + ' (/' + language.prefix + ')';
+		if (String(language.id) === String(selected)) {
+			option.selected = true;
+		}
+		select.appendChild(option);
+	});
+}
+
+/**
+ * stFillLinkedPageSelect: Fills a linked page select with the default language pages.
+ *
+ * @param {HTMLSelectElement} select
+ * @param {Array} pages - Each {id, title}.
+ * @param {String} selected - The selected page autoid.
+ */
+function stFillLinkedPageSelect(select, pages, selected) {
+	if (!select) {
+		return;
+	}
+	select.innerHTML = '';
+	const none = document.createElement('option');
+	none.value = '';
+	none.textContent = '— No linked page —';
+	select.appendChild(none);
+	pages.forEach(function(page) {
+		const option = document.createElement('option');
+		option.value = page.id;
+		option.textContent = page.title;
+		if (page.id === selected) {
+			option.selected = true;
+		}
+		select.appendChild(option);
+	});
+}

@@ -71,6 +71,64 @@ let Select2Input = { ...SelectInput, ...{
   }
 };
 
+// MultiSelectInput: the input for a multi-select block field (the field definition sets "multiple"). The value is
+// saved comma-separated - see saveComponentBlock() / componentInit()
+let MultiSelectInput = { ...SelectInput, ...{
+
+	init: function(data) {
+		let element = this.render("select", data);
+		element.querySelector('select').multiple = true;
+		return element;
+	},
+
+	setValue: function(value) {
+		if (!this.element
+			|| !this.element[0]
+			|| value === undefined
+			|| value === null
+		) {
+			return;
+		}
+		let select = this.element[0].querySelector('select');
+		if (!select) {
+			return;
+		}
+		let values = Array.isArray(value) ? value.map(String) : String(value || '').split(',').filter(v => v !== '');
+		for (const option of select.options) {
+			option.selected = values.includes(option.value);
+		}
+		$(select).trigger('change.select2');
+	},
+
+	// select2 is initialised once the input is in the properties panel
+	afterInit: function(element) {
+		let select = element.querySelector('select');
+		if (!select
+			|| $(select).hasClass('select2-hidden-accessible')
+		) {
+			return;
+		}
+
+		$(select).select2({
+			width: '100%',
+			placeholder: 'All',
+			closeOnSelect: false
+		});
+
+		// select2 only fires jQuery events - pass the choice on to Vvveb as a native change event
+		$(select).on('select2:select select2:unselect', function() {
+			select.dispatchEvent(new Event('change', { bubbles: true }));
+		});
+	}
+  }
+};
+
+// getPropertyValue: Returns a property's value from its input - multi-selects are joined comma-separated
+function getPropertyValue(propElement) {
+	var propValue = propElement.val();
+	return Array.isArray(propValue) ? propValue.join(',') : propValue;
+}
+
 stAjaxCall("getComponents").then((components) => {
 	processComponents(components);
 
@@ -159,6 +217,9 @@ function processComponents(components) {
 								break;
 							case 'select2':
 								properties[i].inputtype = Select2Input;
+								break;
+							case 'select-multiple':
+								properties[i].inputtype = MultiSelectInput;
 								break;
 							default:
 								properties[i].inputtype = TextInput;
@@ -1563,7 +1624,9 @@ function componentInit(component, node) {
 						) {
 							propElement.append(new Option(propLabel, propValue, true, true));
 						}
-						propElement.val(propValue);
+
+						// multi-selects are saved comma-separated
+						propElement.val(propElement.prop('multiple') ? String(propValue).split(',').filter(v => v !== '') : propValue);
 						if(propElement.hasClass('select2-hidden-accessible')) {
 							propElement.trigger('change.select2');
 						}
@@ -1607,7 +1670,7 @@ function componentOnChange(component, node, property, value) {
 			var propElement = $(prop.input).find('[name="' + prop.key + '"]');
 			var propValue = "";
 			if(propElement.length) {
-				var propValue = propElement.val();
+				var propValue = getPropertyValue(propElement);
 			}
 			return propValue !== undefined && propValue !== null && propValue !== '';
 		});
@@ -1641,7 +1704,7 @@ function saveComponentBlock(component, node) {
 		var propElement = $(prop.input).find('[name="' + prop.key + '"]');
 		var propValue = "";
 		if(propElement.length) {
-			propValue = propElement.val();
+			propValue = getPropertyValue(propElement);
 		}
 		propertyValues[prop.key] = propValue;
 	});
