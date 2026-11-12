@@ -990,12 +990,14 @@ function stGetPages(type = 'page') {
 		// build the pages object from the response
 		if(response && response.pages) {
 			response.pages.forEach(function (page) {
+				// a root page with no link is a home page - with page languages each language has one (E.g. the
+				// Welsh "Cartref"), so it's recognised by having no folder rather than by being titled "Home"
 				if(
 					(page.url == undefined
 						|| page.url == null
 						|| page.url == ''
 					)
-					&& page.title == "Home"
+					&& !page.folder
 				) {
 					page.url = "/";
 				}
