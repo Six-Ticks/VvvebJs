@@ -234,7 +234,10 @@ Vvveb.Access = {
 	advancedBlockedWrapperTags: ["form", "st-website-block", "navbar"], // child elements of these tags are not allowed to be edited with level 3 access
 	blockedClasses: ["st-no-edit"], // classes that are not allowed to be edited (this will also block child elements within the class from being edited)
 	wrapperExceptions: { // per blocked wrapper: tags that stay editable when inside the "within" selector
-		navbar: [{ within: ".navbar-collapse", tags: ["a", "img"] }]
+		navbar: [
+			{ within: ".navbar-collapse", tags: ["a", "img"] },
+			{ within: ".st-top-bar-content", tags: ["a", "img", "span", "div"] } // the menu's top bar content (the div itself, so an empty one can be selected)
+		]
 	},
 	allowedTags: function() {
 		let allowedTags = [];
@@ -1610,7 +1613,7 @@ Vvveb.Builder = {
 			"edit-code-btn": !inNavbar,
 			"save-reusable-btn": !inNavbar,
 			"clone-btn": !inNavbar || !node.matches(".dropdown-toggle"),
-			"add-link-btn": inNavbar && (!!node.closest(".navbar-collapse") || node.classList.contains("navbar"))
+			"add-link-btn": inNavbar && (!!node.closest(".navbar-collapse") || !!node.closest(".st-top-bar-content") || node.classList.contains("navbar"))
 		};
 		for (let btnId in navButtons) {
 			let btn = document.getElementById(btnId);

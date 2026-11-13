@@ -1506,8 +1506,23 @@ function stAddNavLink() {
 	let newEl = link;
 	const isLink = node.tagName.toLowerCase() === "a";
 	const dropdownMenu = isLink ? node.closest(".dropdown-menu") : null;
+	const topBarContent = node.closest(".st-top-bar-content");
 
-	if (dropdownMenu) {
+	if (topBarContent) {
+
+		// top bar content (E.g. a Donate button) - a button-styled link after the selected link, or at the end
+		link.className = isLink ? cleanClasses(node.className, "btn btn-sm btn-primary") : "btn btn-sm btn-primary";
+		let anchor = isLink ? node : null;
+		while (anchor && anchor.parentElement && anchor.parentElement !== topBarContent) {
+			anchor = anchor.parentElement;
+		}
+		if (anchor) {
+			anchor.after(link);
+		} else {
+			topBarContent.appendChild(link);
+		}
+
+	} else if (dropdownMenu) {
 
 		// dropdown item (or submenu toggle) selected - insert after the selection's
 		// direct child of that menu (the .dropdown-submenu wrapper for a submenu toggle)

@@ -450,7 +450,11 @@ function searchPages(searchTerm, list, index = 1) {
         }
 
         const isFolder = $(this).hasClass('folder');
-        var itemName = (isFolder) ? ($(this).data('folder') || '').toLowerCase() : ($(this).data('page') || '').toLowerCase();
+        // pages match on their displayed title (data-page holds the page autoid); read as strings so a
+        // numeric value is never coerced to a Number by jQuery .data()
+        var itemName = (isFolder)
+            ? String($(this).attr('data-folder') || '').toLowerCase()
+            : String($(this).children('label').children('span').not('.st-publish-dot').first().text() || '').toLowerCase();
 
         if (itemName.includes(searchTerm)) {
             found = true;

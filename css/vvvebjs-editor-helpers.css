@@ -166,3 +166,9 @@ section:hover .container-fluid > .row > .col {
 .navbar .dropdown:hover > .dropdown-menu,
 .navbar .dropdown-submenu:hover > .dropdown-menu {
   display: block; }
+
+/* Menu top bar: keep the empty content area clickable so links can be added to it */
+.st-top-bar-content:empty {
+  min-width: 6rem;
+  min-height: 1.5rem;
+  outline: 1px dashed #999; }
